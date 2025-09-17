@@ -53,9 +53,9 @@ func (d *BtrfsDriver) createBtrfsSubvolume(subvolumePath string, sizeBytes int64
 	// Set quota if size is specified
 	if sizeBytes > 0 {
 		if err := d.setSubvolumeQuota(subvolumePath, sizeBytes); err != nil {
-			// If quota setting fails, clean up the subvolume
-			d.deleteBtrfsSubvolume(subvolumePath)
-			return fmt.Errorf("failed to set quota: %v", err)
+			// If quota setting fails, log warning but don't fail the subvolume creation
+			klog.Warningf("Failed to set quota for subvolume %s: %v", subvolumePath, err)
+			klog.Warningf("Subvolume created without quota - this may lead to unlimited growth")
 		}
 	}
 
@@ -82,9 +82,14 @@ func (d *BtrfsDriver) deleteBtrfsSubvolume(subvolumePath string) error {
 
 // setSubvolumeQuota sets a quota for a Btrfs subvolume
 func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) error {
+	// First, check if quotas are enabled
+	if !d.areQuotasEnabled() {
+		return fmt.Errorf("quotas not enabled")
+	}
+
 	// Convert bytes to a more readable format for btrfs
 	quotaSize := formatQuotaSize(sizeBytes)
-	
+
 	cmd := exec.Command("btrfs", "qgroup", "limit", quotaSize, subvolumePath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to set quota: %v, output: %s", err, string(output))
@@ -92,6 +97,21 @@ func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) e
 
 	klog.Infof("Set quota %s for subvolume: %s", quotaSize, subvolumePath)
 	return nil
+}
+
+// areQuotasEnabled checks if quotas are enabled without trying to enable them
+func (d *BtrfsDriver) areQuotasEnabled() bool {
+	cmd := exec.Command("btrfs", "qgroup", "show", BtrfsRootPath)
+	if err := cmd.Run(); err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
+			// Exit code 1 means quotas are not enabled
+			return false
+		}
+		// Other errors - assume quotas are not enabled
+		return false
+	}
+	// No error means quotas are enabled
+	return true
 }
 
 // formatQuotaSize formats the quota size for btrfs command
