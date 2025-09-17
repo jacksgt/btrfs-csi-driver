@@ -80,12 +80,16 @@ The driver supports the following command-line flags:
 - `--endpoint`: CSI endpoint (default: `unix://tmp/csi.sock`)
 - `--nodeid`: Node ID (required)
 - `--kubeconfig`: Path to kubeconfig file (optional, defaults to in-cluster config)
+- `--controller`: Run as controller service (default: false, runs as node service)
 - `--v`: Log level (default: 0)
 
 Example usage:
 ```bash
-# Using in-cluster configuration (default in Kubernetes)
+# Node service (default)
 ./btrfs-csi --nodeid=node-1 --endpoint=unix://tmp/csi.sock
+
+# Controller service
+./btrfs-csi --nodeid=controller-1 --endpoint=unix://tmp/csi.sock --controller=true
 
 # Using local kubeconfig file
 ./btrfs-csi --nodeid=node-1 --endpoint=unix://tmp/csi.sock --kubeconfig=/path/to/kubeconfig

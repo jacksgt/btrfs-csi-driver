@@ -56,6 +56,7 @@ docker-push:
 deploy:
 	kubectl apply -f deploy/kubernetes/rbac.yaml
 	kubectl apply -f deploy/kubernetes/csi-driver.yaml
+	kubectl apply -f deploy/kubernetes/controller.yaml
 	kubectl apply -f deploy/kubernetes/daemonset.yaml
 	kubectl apply -f deploy/kubernetes/storageclass.yaml
 
@@ -64,6 +65,7 @@ deploy:
 undeploy:
 	kubectl delete -f deploy/kubernetes/storageclass.yaml --ignore-not-found=true
 	kubectl delete -f deploy/kubernetes/daemonset.yaml --ignore-not-found=true
+	kubectl delete -f deploy/kubernetes/controller.yaml --ignore-not-found=true
 	kubectl delete -f deploy/kubernetes/csi-driver.yaml --ignore-not-found=true
 	kubectl delete -f deploy/kubernetes/rbac.yaml --ignore-not-found=true
 

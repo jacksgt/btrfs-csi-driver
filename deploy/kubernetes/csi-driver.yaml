@@ -4,11 +4,11 @@ metadata:
   name: btrfs.csi.k8s.io
 spec:
   attachRequired: false
-  podInfoOnMount: false
+  podInfoOnMount: true
   volumeLifecycleModes:
     - Persistent
   fsGroupPolicy: None
   requiresRepublish: false
-  storageCapacity: false
+  storageCapacity: false # TODO: implement this
   tokenRequests: []
   seLinuxMount: false

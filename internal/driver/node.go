@@ -1,0 +1,235 @@
+package driver
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strconv"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"k8s.io/klog/v2"
+)
+
+// Node Service Implementation
+func (d *BtrfsDriver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
+	klog.Infof("NodeStageVolume: called with args %+v", req)
+
+	if err := d.validateNodeStageVolumeRequest(req); err != nil {
+		return nil, err
+	}
+
+	volumeID := req.GetVolumeId()
+	stagingTargetPath := req.GetStagingTargetPath()
+
+	// Create staging directory
+	if err := os.MkdirAll(stagingTargetPath, 0755); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create staging directory %s: %v", stagingTargetPath, err)
+	}
+
+	// For local volumes, we don't need to mount anything at staging
+	// The actual volume will be mounted at publish time
+	klog.Infof("NodeStageVolume: volume %s staged at %s", volumeID, stagingTargetPath)
+
+	return &csi.NodeStageVolumeResponse{}, nil
+}
+
+func (d *BtrfsDriver) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
+	klog.Infof("NodeUnstageVolume: called with args %+v", req)
+
+	if err := d.validateNodeUnstageVolumeRequest(req); err != nil {
+		return nil, err
+	}
+
+	stagingTargetPath := req.GetStagingTargetPath()
+
+	// Remove staging directory
+	if err := os.RemoveAll(stagingTargetPath); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to remove staging directory %s: %v", stagingTargetPath, err)
+	}
+
+	klog.Infof("NodeUnstageVolume: volume unstaged from %s", stagingTargetPath)
+
+	return &csi.NodeUnstageVolumeResponse{}, nil
+}
+
+func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+	klog.Infof("NodePublishVolume: called with args %+v", req)
+
+	if err := d.validateNodePublishVolumeRequest(req); err != nil {
+		return nil, err
+	}
+
+	volumeID := req.GetVolumeId()
+	targetPath := req.GetTargetPath()
+	
+	// Get pod information if available
+	podInfo := req.GetVolumeContext()["csi.storage.k8s.io/pod.name"]
+	podNamespace := req.GetVolumeContext()["csi.storage.k8s.io/pod.namespace"]
+	podUID := req.GetVolumeContext()["csi.storage.k8s.io/pod.uid"]
+	
+	klog.Infof("NodePublishVolume: pod info - name: %s, namespace: %s, uid: %s", podInfo, podNamespace, podUID)
+
+	// Create target directory
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create target directory %s: %v", targetPath, err)
+	}
+
+	// Create Btrfs subvolume for this volume
+	subvolumePath := filepath.Join("/var/lib/btrfs-csi", volumeID)
+	
+	// Get capacity from volume context (stored during CreateVolume)
+	capacity := int64(DefaultQuotaSize)
+	if capacityStr, exists := req.GetVolumeContext()["capacity"]; exists {
+		if parsedCapacity, err := strconv.ParseInt(capacityStr, 10, 64); err == nil {
+			capacity = parsedCapacity
+		}
+	}
+	
+	klog.Infof("NodePublishVolume: creating subvolume %s with capacity %d bytes", subvolumePath, capacity)
+	
+	if err := d.createBtrfsSubvolume(subvolumePath, capacity); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create btrfs subvolume: %v", err)
+	}
+
+	// Mount the subvolume to target path
+	if err := d.mountSubvolume(subvolumePath, targetPath); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to mount subvolume: %v", err)
+	}
+
+	klog.Infof("NodePublishVolume: volume %s published at %s for pod %s/%s", volumeID, targetPath, podNamespace, podInfo)
+
+	return &csi.NodePublishVolumeResponse{}, nil
+}
+
+func (d *BtrfsDriver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+	klog.Infof("NodeUnpublishVolume: called with args %+v", req)
+
+	if err := d.validateNodeUnpublishVolumeRequest(req); err != nil {
+		return nil, err
+	}
+
+	volumeID := req.GetVolumeId()
+	targetPath := req.GetTargetPath()
+
+	// Unmount the volume
+	if err := d.unmountVolume(targetPath); err != nil {
+		klog.Warningf("Failed to unmount volume at %s: %v", targetPath, err)
+	}
+
+	// Remove target directory
+	if err := os.RemoveAll(targetPath); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to remove target directory %s: %v", targetPath, err)
+	}
+
+	// Note: We do not delete the Btrfs subvolume here to allow for potential reuse or delayed cleanup.
+	// If subvolume deletion is required, uncomment the following lines:
+	// subvolumePath := filepath.Join("/var/lib/btrfs-csi", volumeID)
+	// if err := d.deleteBtrfsSubvolume(subvolumePath); err != nil {
+	//     klog.Warningf("Failed to delete btrfs subvolume %s: %v", subvolumePath, err)
+	// }
+
+	klog.Infof("NodeUnpublishVolume: volume %s unpublished from %s", volumeID, targetPath)
+
+	return &csi.NodeUnpublishVolumeResponse{}, nil
+}
+
+func (d *BtrfsDriver) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+func (d *BtrfsDriver) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+func (d *BtrfsDriver) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+	klog.Infof("NodeGetCapabilities: called with args %+v", req)
+
+	capabilities := []*csi.NodeServiceCapability{
+		{
+			Type: &csi.NodeServiceCapability_Rpc{
+				Rpc: &csi.NodeServiceCapability_RPC{
+					Type: csi.NodeServiceCapability_RPC_STAGE_UNSTAGE_VOLUME,
+				},
+			},
+		},
+		{
+			Type: &csi.NodeServiceCapability_Rpc{
+				Rpc: &csi.NodeServiceCapability_RPC{
+					Type: csi.NodeServiceCapability_RPC_GET_VOLUME_STATS,
+				},
+			},
+		},
+	}
+
+	return &csi.NodeGetCapabilitiesResponse{
+		Capabilities: capabilities,
+	}, nil
+}
+
+func (d *BtrfsDriver) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+	klog.Infof("NodeGetInfo: called with args %+v", req)
+
+	return &csi.NodeGetInfoResponse{
+		NodeId: d.nodeID,
+		AccessibleTopology: &csi.Topology{
+			Segments: map[string]string{
+				"kubernetes.io/hostname": d.nodeID,
+			},
+		},
+	}, nil
+}
+
+// Node validation methods
+func (d *BtrfsDriver) validateNodeStageVolumeRequest(req *csi.NodeStageVolumeRequest) error {
+	if req.GetVolumeId() == "" {
+		return status.Error(codes.InvalidArgument, "volume ID is required")
+	}
+
+	if req.GetStagingTargetPath() == "" {
+		return status.Error(codes.InvalidArgument, "staging target path is required")
+	}
+
+	return nil
+}
+
+func (d *BtrfsDriver) validateNodeUnstageVolumeRequest(req *csi.NodeUnstageVolumeRequest) error {
+	if req.GetVolumeId() == "" {
+		return status.Error(codes.InvalidArgument, "volume ID is required")
+	}
+
+	if req.GetStagingTargetPath() == "" {
+		return status.Error(codes.InvalidArgument, "staging target path is required")
+	}
+
+	return nil
+}
+
+func (d *BtrfsDriver) validateNodePublishVolumeRequest(req *csi.NodePublishVolumeRequest) error {
+	if req.GetVolumeId() == "" {
+		return status.Error(codes.InvalidArgument, "volume ID is required")
+	}
+
+	if req.GetStagingTargetPath() == "" {
+		return status.Error(codes.InvalidArgument, "staging target path is required")
+	}
+
+	if req.GetTargetPath() == "" {
+		return status.Error(codes.InvalidArgument, "target path is required")
+	}
+
+	return nil
+}
+
+func (d *BtrfsDriver) validateNodeUnpublishVolumeRequest(req *csi.NodeUnpublishVolumeRequest) error {
+	if req.GetVolumeId() == "" {
+		return status.Error(codes.InvalidArgument, "volume ID is required")
+	}
+
+	if req.GetTargetPath() == "" {
+		return status.Error(codes.InvalidArgument, "target path is required")
+	}
+
+	return nil
+}
