@@ -70,8 +70,11 @@ func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Errorf(codes.Internal, "failed to create target directory %s: %v", targetPath, err)
 	}
 
+	// Get subvolume root from volume context
+	subvolumeRoot := d.getSubvolumeRootFromVolumeContext(req.GetVolumeContext())
+
 	// The subvolume should already exist (created in CreateVolume)
-	subvolumePath := filepath.Join("/var/lib/btrfs-csi", volumeID)
+	subvolumePath := filepath.Join(subvolumeRoot, volumeID)
 
 	// Check if subvolume exists
 	if _, err := os.Stat(subvolumePath); os.IsNotExist(err) {

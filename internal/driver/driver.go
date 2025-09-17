@@ -17,18 +17,11 @@ type BtrfsDriver struct {
 	*csicommon.CSIDriver
 	nodeID       string
 	endpoint     string
-	kubeconfig   string
 	btrfsManager *BtrfsManager
 }
 
-func NewBtrfsDriver(nodeID, endpoint, kubeconfig string) (*BtrfsDriver, error) {
+func NewBtrfsDriver(nodeID, endpoint string) (*BtrfsDriver, error) {
 	klog.Infof("Driver: %v version: %v", DriverName, Version)
-
-	if kubeconfig != "" {
-		klog.Infof("Using kubeconfig file: %s", kubeconfig)
-	} else {
-		klog.Infof("Using in-cluster Kubernetes configuration")
-	}
 
 	csiDriver := csicommon.NewCSIDriver(DriverName, Version, nodeID)
 	if csiDriver == nil {
@@ -41,10 +34,9 @@ func NewBtrfsDriver(nodeID, endpoint, kubeconfig string) (*BtrfsDriver, error) {
 	})
 
 	btrfsDriver := &BtrfsDriver{
-		CSIDriver:  csiDriver,
-		nodeID:     nodeID,
-		endpoint:   endpoint,
-		kubeconfig: kubeconfig,
+		CSIDriver: csiDriver,
+		nodeID:    nodeID,
+		endpoint:  endpoint,
 	}
 
 	// Advertise controller capabilities

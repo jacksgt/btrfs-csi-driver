@@ -87,11 +87,6 @@ check-btrfs:
 		kubectl debug node/$$node -it --image=alpine:3.18 -- chroot /host btrfs version || echo "Btrfs not available on $$node"; \
 	done
 
-# Show logs from the driver
-.PHONY: logs
-logs:
-	kubectl logs -n kube-system -l app=btrfs-csi-driver -c btrfs-csi-driver --tail=100
-
 # Show driver status
 .PHONY: status
 status:
@@ -107,10 +102,6 @@ status:
 	@echo "=== StorageClass ==="
 	kubectl get storageclass btrfs-local
 
-# All-in-one build and deploy
-.PHONY: all
-all: deps build docker-build deploy
-
 # Help
 .PHONY: help
 help:
@@ -121,12 +112,11 @@ help:
 	@echo "  deps         - Download and tidy dependencies"
 	@echo "  docker-build - Build Docker image"
 	@echo "  docker-push  - Push Docker image to registry"
-	@echo "  deploy       - Deploy to Kubernetes"
-	@echo "  undeploy     - Remove from Kubernetes"
+	@echo "  deploy-csi   - Deploy CSI driver to Kubernetes"
+	@echo "  undeploy-csi - Remove CSI driver from Kubernetes"
 	@echo "  deploy-test  - Deploy test PVC and Pod"
 	@echo "  clean-test   - Remove test resources"
 	@echo "  check-btrfs  - Check Btrfs support on nodes"
-	@echo "  logs         - Show driver logs"
 	@echo "  status       - Show driver status"
 	@echo "  all          - Build and deploy everything"
 	@echo "  help         - Show this help"

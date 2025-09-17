@@ -4,7 +4,8 @@ metadata:
   name: btrfs-local
 provisioner: btrfs.csi.k8s.io
 parameters:
-  # No additional parameters needed for local volumes
+  # filesystem path where the subvolumes will be created
+  subvolumeRoot: /var/lib/btrfs-csi
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
 allowVolumeExpansion: false

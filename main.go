@@ -9,9 +9,8 @@ import (
 )
 
 var (
-	endpoint   = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
-	nodeID     = flag.String("nodeid", "", "node id")
-	kubeconfig = flag.String("kubeconfig", "", "path to kubeconfig file (optional, defaults to in-cluster config)")
+	endpoint = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
+	nodeID   = flag.String("nodeid", "", "node id")
 )
 
 func main() {
@@ -27,7 +26,7 @@ func main() {
 		klog.Fatalf("nodeid is required")
 	}
 
-	drv, err := driver.NewBtrfsDriver(*nodeID, *endpoint, *kubeconfig)
+	drv, err := driver.NewBtrfsDriver(*nodeID, *endpoint)
 	if err != nil {
 		klog.Fatalf("Failed to initialize driver: %v", err)
 	}

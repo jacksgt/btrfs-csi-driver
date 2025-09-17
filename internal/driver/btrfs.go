@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	// BtrfsRootPath is the root path where all Btrfs subvolumes will be created
+	// BtrfsRootPath is the default root path where Btrfs subvolumes will be created
+	// This is used for filesystem operations and as a fallback when no subvolumeRoot parameter is provided
 	BtrfsRootPath = "/var/lib/btrfs-csi"
 	// DefaultQuotaSize is the default quota size if not specified (1GB)
 	DefaultQuotaSize = 1073741824 // 1GB in bytes
@@ -19,14 +20,11 @@ const (
 
 // BtrfsManager handles Btrfs subvolume operations
 type BtrfsManager struct {
-	rootPath string
 }
 
 // NewBtrfsManager creates a new BtrfsManager instance
 func NewBtrfsManager() *BtrfsManager {
-	return &BtrfsManager{
-		rootPath: BtrfsRootPath,
-	}
+	return &BtrfsManager{}
 }
 
 // createBtrfsSubvolume creates a new Btrfs subvolume with quota
