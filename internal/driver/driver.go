@@ -21,7 +21,7 @@ type BtrfsDriver struct {
 	btrfsManager *BtrfsManager
 }
 
-func NewBtrfsDriver(nodeID, endpoint, kubeconfig string, controller bool) (*BtrfsDriver, error) {
+func NewBtrfsDriver(nodeID, endpoint, kubeconfig string) (*BtrfsDriver, error) {
 	klog.Infof("Driver: %v version: %v", DriverName, Version)
 
 	if kubeconfig != "" {

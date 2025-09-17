@@ -46,7 +46,7 @@ func (d *BtrfsDriver) CreateVolume(ctx context.Context, req *csi.CreateVolumeReq
 
 	klog.Infof("CreateVolume: creating volume %s for node %s", volumeID, targetNode)
 
-	// Create the Btrfs subvolume immediately
+	// Create the Btrfs subvolume
 	subvolumePath := filepath.Join("/var/lib/btrfs-csi", volumeID)
 	if err := d.createBtrfsSubvolume(subvolumePath, capacity); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create btrfs subvolume: %v", err)
@@ -144,10 +144,6 @@ func (d *BtrfsDriver) GetCapacity(ctx context.Context, req *csi.GetCapacityReque
 		klog.Errorf("Failed to get Btrfs available space: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to get available space: %v", err)
 	}
-
-	// Note: GetCapacityRequest doesn't have a CapacityRange field
-	// The capacity check is typically done during CreateVolume
-	// We just return the total available capacity
 
 	// Return the available capacity
 	return &csi.GetCapacityResponse{

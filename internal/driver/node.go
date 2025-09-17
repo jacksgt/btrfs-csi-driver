@@ -12,6 +12,8 @@ import (
 )
 
 // Node Service Implementation
+// TODO: I think this is not needed, we should just mount the subvolume to the pod dir in NodePublishVolume.
+// Do we set NODE_STAGE_VOLUME capability?
 func (d *BtrfsDriver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("NodeStageVolume: called with args %+v", req)
 
@@ -63,13 +65,6 @@ func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
 
-	// Get pod information if available
-	podInfo := req.GetVolumeContext()["csi.storage.k8s.io/pod.name"]
-	podNamespace := req.GetVolumeContext()["csi.storage.k8s.io/pod.namespace"]
-	podUID := req.GetVolumeContext()["csi.storage.k8s.io/pod.uid"]
-
-	klog.Infof("NodePublishVolume: pod info - name: %s, namespace: %s, uid: %s", podInfo, podNamespace, podUID)
-
 	// Create target directory
 	if err := os.MkdirAll(targetPath, 0755); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create target directory %s: %v", targetPath, err)
@@ -88,7 +83,7 @@ func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Errorf(codes.Internal, "failed to mount subvolume: %v", err)
 	}
 
-	klog.Infof("NodePublishVolume: volume %s published at %s for pod %s/%s", volumeID, targetPath, podNamespace, podInfo)
+	klog.Infof("NodePublishVolume: volume %s mounted at %s", volumeID, targetPath)
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }
@@ -108,7 +103,7 @@ func (d *BtrfsDriver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 		klog.Warningf("Failed to unmount volume at %s: %v", targetPath, err)
 	}
 
-	klog.Infof("NodeUnpublishVolume: volume %s unpublished from %s", volumeID, targetPath)
+	klog.Infof("NodeUnpublishVolume: volume %s removed from %s", volumeID, targetPath)
 
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }

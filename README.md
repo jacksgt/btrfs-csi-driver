@@ -2,21 +2,25 @@
 
 A Kubernetes Container Storage Interface (CSI) driver that provides persistent volumes using Btrfs subvolumes with quotas.
 
+## Status
+
+**ALPHA**
+
 ## Features
 
-- **Btrfs Subvolumes**: Each persistent volume is backed by a Btrfs subvolume
-- **Quota Support**: Automatic quota enforcement for each volume
-- **Local Volumes**: Uses Kubernetes local volume type for node-specific storage
-- **WaitForFirstConsumer**: Volumes are created only when a pod is scheduled
-- **Node Driver Registrar**: Automatic node registration and health monitoring
-- **Flexible Authentication**: Supports both in-cluster and kubeconfig-based authentication
+- [x] **Dynamic provisioning of Btrfs Subvolumes**: Each persistent volume is created as a Btrfs subvolume
+- [x] **Quota Support**: Automatic quota management for volume size limits
+- [x] **Capacity information**: [Storage Capacity](https://kubernetes.io/docs/concepts/storage/storage-capacity/) is exposed to help the scheduler make decisions
+- [ ] **Kubernetes Native**: Full CSI compliance with Kubernetes
+- [ ] **Snapshot support**: Kubernetes VolumeSnapshots can be used to create btrfs subvolume snapshot
+- [ ] **Metrics**: Prometheus metrics regarding volume usage are exported by the CSI driver
+- [ ] **Multiple StorageClasses**: the CSI driver serves multiple StorageClasses which can point to different btrfs filesystems
+- [ ] **Volume specific configuration**: allow dis-/enabling Copy-on-Write (CoW) for individual btrfs subvolumes
 
 ## Prerequisites
 
 - Kubernetes cluster with CSI support
-- Nodes with Btrfs filesystem support
-- `btrfs-progs` installed on all nodes
-- Docker or compatible container runtime
+- Nodes with at least one Btrfs filesystem
 
 ## Quick Start
 
@@ -58,42 +62,18 @@ kubectl exec -it btrfs-test-pod -- ls -la /data
 
 ## Architecture
 
-The driver consists of:
+The driver is deployed as a single `DaemonSet` that is composed of:
 
-- **CSI Driver**: Main driver implementing the CSI interface
+- **CSI Provisioner**: Main driver implementing the CSI interface, configured in *distributed provisioning* mode
 - **Btrfs Manager**: Handles Btrfs subvolume creation, deletion, and quota management
 - **Node Driver Registrar**: Sidecar container for node registration
 
 ## Volume Lifecycle
 
-1. **CreateVolume**: Creates a volume definition (no actual subvolume yet)
-2. **WaitForFirstConsumer**: Waits for a pod to be scheduled
-3. **NodePublishVolume**: Creates the actual Btrfs subvolume on the target node
-4. **NodeUnpublishVolume**: Unmounts and deletes the subvolume
-
-## Configuration
-
-### Command Line Options
-
-The driver supports the following command-line flags:
-
-- `--endpoint`: CSI endpoint (default: `unix://tmp/csi.sock`)
-- `--nodeid`: Node ID (required)
-- `--kubeconfig`: Path to kubeconfig file (optional, defaults to in-cluster config)
-- `--controller`: Run as controller service (default: false, runs as node service)
-- `--v`: Log level (default: 0)
-
-Example usage:
-```bash
-# Node service (default)
-./btrfs-csi --nodeid=node-1 --endpoint=unix://tmp/csi.sock
-
-# Controller service
-./btrfs-csi --nodeid=controller-1 --endpoint=unix://tmp/csi.sock --controller=true
-
-# Using local kubeconfig file
-./btrfs-csi --nodeid=node-1 --endpoint=unix://tmp/csi.sock --kubeconfig=/path/to/kubeconfig
-```
+1. **CreateVolume** (called after creating a PVC): Allocates a new Btrfs subvolume on the target node and prepares it for use.
+2. **NodePublishVolume** (called when creating a Pod that uses the PVC): Mounts the subvolume to the target pod's filesystem.
+3. **NodeUnpublishVolume** (called when the Pod is deleted): Unmounts the subvolume from the pod.
+4. **DeleteVolume** (called when the PVC is deleted): Deletes the Btrfs subvolume from the node, releasing the storage.
 
 ### StorageClass
 
@@ -124,22 +104,6 @@ spec:
 ```
 
 ## Development
-
-### Project Structure
-
-```
-btrfs-csi/
-├── main.go                    # Entry point
-├── internal/
-│   └── driver/
-│       ├── driver.go         # CSI driver implementation
-│       └── btrfs.go         # Btrfs management functions
-├── deploy/
-│   └── kubernetes/          # Kubernetes manifests
-├── Dockerfile               # Container image
-├── Makefile                # Build and deployment scripts
-└── README.md               # This file
-```
 
 ### Building
 
@@ -178,7 +142,7 @@ make check-btrfs
 ### View Driver Logs
 
 ```bash
-make logs
+make logs-csi
 ```
 
 ### Check Driver Status
@@ -187,25 +151,10 @@ make logs
 make status
 ```
 
-### Common Issues
-
-1. **Btrfs not available**: Ensure `btrfs-progs` is installed on all nodes
-2. **Permission denied**: The driver needs `SYS_ADMIN` capability for mount operations
-3. **Volume not created**: Check if the node has sufficient disk space and Btrfs support
-
 ## Security Considerations
 
-- The driver runs with `privileged: true` and `SYS_ADMIN` capability
-- This is required for Btrfs subvolume operations and mount operations
-- Consider using Pod Security Standards in production environments
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+The driver runs with `privileged: true` and `SYS_ADMIN` capability, this is required for Btrfs subvolume operations and mount operations.
+Consider using Pod Security Standards in production environments.
 
 ## License
 
