@@ -1,0 +1,196 @@
+package driver
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+
+	"k8s.io/klog/v2"
+)
+
+const (
+	// BtrfsRootPath is the root path where all Btrfs subvolumes will be created
+	BtrfsRootPath = "/var/lib/btrfs-csi"
+	// DefaultQuotaSize is the default quota size if not specified (1GB)
+	DefaultQuotaSize = 1073741824 // 1GB in bytes
+)
+
+// BtrfsManager handles Btrfs subvolume operations
+type BtrfsManager struct {
+	rootPath string
+}
+
+// NewBtrfsManager creates a new BtrfsManager instance
+func NewBtrfsManager() *BtrfsManager {
+	return &BtrfsManager{
+		rootPath: BtrfsRootPath,
+	}
+}
+
+// createBtrfsSubvolume creates a new Btrfs subvolume with quota
+func (d *BtrfsDriver) createBtrfsSubvolume(subvolumePath string, sizeBytes int64) error {
+	// Ensure the root directory exists
+	if err := os.MkdirAll(BtrfsRootPath, 0755); err != nil {
+		return fmt.Errorf("failed to create root directory: %v", err)
+	}
+
+	// Check if subvolume already exists
+	if _, err := os.Stat(subvolumePath); err == nil {
+		klog.Infof("Subvolume %s already exists", subvolumePath)
+		return nil
+	}
+
+	// Create the subvolume
+	cmd := exec.Command("btrfs", "subvolume", "create", subvolumePath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to create btrfs subvolume: %v, output: %s", err, string(output))
+	}
+
+	klog.Infof("Created btrfs subvolume: %s", subvolumePath)
+
+	// Set quota if size is specified
+	if sizeBytes > 0 {
+		if err := d.setSubvolumeQuota(subvolumePath, sizeBytes); err != nil {
+			// If quota setting fails, clean up the subvolume
+			d.deleteBtrfsSubvolume(subvolumePath)
+			return fmt.Errorf("failed to set quota: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// deleteBtrfsSubvolume deletes a Btrfs subvolume
+func (d *BtrfsDriver) deleteBtrfsSubvolume(subvolumePath string) error {
+	// Check if subvolume exists
+	if _, err := os.Stat(subvolumePath); os.IsNotExist(err) {
+		klog.Infof("Subvolume %s does not exist, skipping deletion", subvolumePath)
+		return nil
+	}
+
+	// Delete the subvolume
+	cmd := exec.Command("btrfs", "subvolume", "delete", subvolumePath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to delete btrfs subvolume: %v, output: %s", err, string(output))
+	}
+
+	klog.Infof("Deleted btrfs subvolume: %s", subvolumePath)
+	return nil
+}
+
+// setSubvolumeQuota sets a quota for a Btrfs subvolume
+func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) error {
+	// Convert bytes to a more readable format for btrfs
+	quotaSize := formatQuotaSize(sizeBytes)
+	
+	cmd := exec.Command("btrfs", "qgroup", "limit", quotaSize, subvolumePath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to set quota: %v, output: %s", err, string(output))
+	}
+
+	klog.Infof("Set quota %s for subvolume: %s", quotaSize, subvolumePath)
+	return nil
+}
+
+// formatQuotaSize formats the quota size for btrfs command
+func formatQuotaSize(sizeBytes int64) string {
+	// Convert to human readable format
+	if sizeBytes >= 1024*1024*1024 {
+		return fmt.Sprintf("%dG", sizeBytes/(1024*1024*1024))
+	} else if sizeBytes >= 1024*1024 {
+		return fmt.Sprintf("%dM", sizeBytes/(1024*1024))
+	} else if sizeBytes >= 1024 {
+		return fmt.Sprintf("%dK", sizeBytes/1024)
+	}
+	return fmt.Sprintf("%dB", sizeBytes)
+}
+
+// mountSubvolume mounts a Btrfs subvolume to the target path
+func (d *BtrfsDriver) mountSubvolume(subvolumePath, targetPath string) error {
+	// Use bind mount to mount the subvolume
+	cmd := exec.Command("mount", "--bind", subvolumePath, targetPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to bind mount subvolume: %v, output: %s", err, string(output))
+	}
+
+	klog.Infof("Mounted subvolume %s to %s", subvolumePath, targetPath)
+	return nil
+}
+
+// unmountVolume unmounts a volume from the target path
+func (d *BtrfsDriver) unmountVolume(targetPath string) error {
+	cmd := exec.Command("umount", targetPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to unmount volume: %v, output: %s", err, string(output))
+	}
+
+	klog.Infof("Unmounted volume from %s", targetPath)
+	return nil
+}
+
+// getSubvolumeInfo gets information about a Btrfs subvolume
+func (d *BtrfsDriver) getSubvolumeInfo(subvolumePath string) (*SubvolumeInfo, error) {
+	// Get subvolume ID
+	cmd := exec.Command("btrfs", "subvolume", "show", subvolumePath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get subvolume info: %v, output: %s", err, string(output))
+	}
+
+	info := &SubvolumeInfo{
+		Path: subvolumePath,
+	}
+
+	// Parse output to extract subvolume ID
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "Subvolume ID:") {
+			parts := strings.Fields(line)
+			if len(parts) >= 3 {
+				if id, err := strconv.Atoi(parts[2]); err == nil {
+					info.ID = id
+				}
+			}
+		}
+	}
+
+	return info, nil
+}
+
+// checkBtrfsSupport checks if Btrfs is supported on the system
+func (d *BtrfsDriver) checkBtrfsSupport() error {
+	// Check if btrfs command is available
+	cmd := exec.Command("btrfs", "version")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("btrfs command not found: %v", err)
+	}
+
+	// Check if the root path is on a Btrfs filesystem
+	cmd = exec.Command("btrfs", "filesystem", "show", BtrfsRootPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		// If the path doesn't exist, create it and check if we can create a Btrfs filesystem
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(BtrfsRootPath, 0755); err != nil {
+				return fmt.Errorf("failed to create root directory: %v", err)
+			}
+		}
+		return fmt.Errorf("root path is not on a Btrfs filesystem: %v, output: %s", err, string(output))
+	}
+
+	klog.Infof("Btrfs support verified for path: %s", BtrfsRootPath)
+	return nil
+}
+
+// SubvolumeInfo contains information about a Btrfs subvolume
+type SubvolumeInfo struct {
+	ID   int
+	Path string
+}
+
+// Initialize BtrfsManager in the driver
+func (d *BtrfsDriver) initBtrfsManager() error {
+	d.btrfsManager = NewBtrfsManager()
+	return d.checkBtrfsSupport()
+}

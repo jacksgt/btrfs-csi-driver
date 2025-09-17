@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: btrfs-test-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: btrfs-local
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: btrfs-test-pod
+spec:
+  containers:
+  - name: test-container
+    image: alpine:3.18
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do echo 'Hello from Btrfs CSI volume!' > /data/test.txt; cat /data/test.txt; sleep 30; done"]
+    volumeMounts:
+    - name: btrfs-volume
+      mountPath: /data
+  volumes:
+  - name: btrfs-volume
+    persistentVolumeClaim:
+      claimName: btrfs-test-pvc
+  restartPolicy: Never

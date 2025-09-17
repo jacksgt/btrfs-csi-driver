@@ -1,0 +1,14 @@
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: btrfs.csi.k8s.io
+spec:
+  attachRequired: false
+  podInfoOnMount: false
+  volumeLifecycleModes:
+    - Persistent
+  fsGroupPolicy: None
+  requiresRepublish: false
+  storageCapacity: false
+  tokenRequests: []
+  seLinuxMount: false
