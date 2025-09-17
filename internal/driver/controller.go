@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"path/filepath"
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -23,7 +24,7 @@ func (d *BtrfsDriver) CreateVolume(ctx context.Context, req *csi.CreateVolumeReq
 
 	// Determine the target node for this volume
 	targetNode := d.nodeID // Default to controller node
-	
+
 	// For WaitForFirstConsumer, check accessibility requirements to find the target node
 	if req.GetAccessibilityRequirements() != nil {
 		for _, topology := range req.GetAccessibilityRequirements().GetPreferred() {
@@ -45,15 +46,21 @@ func (d *BtrfsDriver) CreateVolume(ctx context.Context, req *csi.CreateVolumeReq
 
 	klog.Infof("CreateVolume: creating volume %s for node %s", volumeID, targetNode)
 
-	// For WaitForFirstConsumer, we don't create the volume immediately
-	// We'll create it in NodePublishVolume when we know the node
+	// Create the Btrfs subvolume immediately
+	subvolumePath := filepath.Join("/var/lib/btrfs-csi", volumeID)
+	if err := d.createBtrfsSubvolume(subvolumePath, capacity); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create btrfs subvolume: %v", err)
+	}
+
+	klog.Infof("CreateVolume: created subvolume %s with capacity %d bytes", subvolumePath, capacity)
+
 	volume := &csi.Volume{
 		VolumeId:      volumeID,
 		CapacityBytes: capacity,
 		VolumeContext: map[string]string{
 			"storage.kubernetes.io/csiProvisionerIdentity": "btrfs-csi",
 			"targetNode": targetNode,
-			"capacity": strconv.FormatInt(capacity, 10),
+			"capacity":   strconv.FormatInt(capacity, 10),
 		},
 		ContentSource: req.GetVolumeContentSource(),
 	}
@@ -80,10 +87,15 @@ func (d *BtrfsDriver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeReq
 	}
 
 	volumeID := req.GetVolumeId()
-	
-	// For local volumes, we need to delete the subvolume on the specific node
-	// This will be handled by the node where the volume was created
-	klog.Infof("Volume %s will be deleted when NodeUnpublishVolume is called", volumeID)
+
+	// Delete the Btrfs subvolume
+	subvolumePath := filepath.Join("/var/lib/btrfs-csi", volumeID)
+	if err := d.deleteBtrfsSubvolume(subvolumePath); err != nil {
+		klog.Errorf("Failed to delete btrfs subvolume %s: %v", subvolumePath, err)
+		// Don't return error - the subvolume might not exist or already be deleted
+	} else {
+		klog.Infof("DeleteVolume: deleted subvolume %s", subvolumePath)
+	}
 
 	return &csi.DeleteVolumeResponse{}, nil
 }
@@ -120,7 +132,27 @@ func (d *BtrfsDriver) ListVolumes(ctx context.Context, req *csi.ListVolumesReque
 }
 
 func (d *BtrfsDriver) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	klog.Infof("GetCapacity: called with args %+v", req)
+
+	// For node-deployed external-provisioner, we need to return the available capacity
+	// on this specific node. Since we're using Btrfs subvolumes, we can check the
+	// available space on the Btrfs filesystem.
+
+	// Get available space on the Btrfs filesystem
+	availableBytes, err := d.getBtrfsAvailableSpace()
+	if err != nil {
+		klog.Errorf("Failed to get Btrfs available space: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get available space: %v", err)
+	}
+
+	// Note: GetCapacityRequest doesn't have a CapacityRange field
+	// The capacity check is typically done during CreateVolume
+	// We just return the total available capacity
+
+	// Return the available capacity
+	return &csi.GetCapacityResponse{
+		AvailableCapacity: availableBytes,
+	}, nil
 }
 
 func (d *BtrfsDriver) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {

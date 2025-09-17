@@ -203,6 +203,55 @@ type SubvolumeInfo struct {
 	Path string
 }
 
+// getBtrfsAvailableSpace returns the available space on the Btrfs filesystem
+func (d *BtrfsDriver) getBtrfsAvailableSpace() (int64, error) {
+	// Use btrfs filesystem usage to get accurate available space
+	cmd := exec.Command("btrfs", "filesystem", "usage", "--raw", BtrfsRootPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get btrfs filesystem usage: %v, output: %s", err, string(output))
+	}
+
+	// Parse the output to get "Free (estimated)" value
+	// Example output:
+	// Overall:
+	//     Device size:                       10737418240
+	//     Device allocated:                    562036736
+	//     Device unallocated:                10175381504
+	//     Device missing:                              0
+	//     Device slack:                                0
+	//     Used:                                   393216
+	//     Free (estimated):                  10183770112      (min: 5096079360)
+	//     Free (statfs, df):                 10182721536
+	//     Data ratio:                               1.00
+	//     Metadata ratio:                           2.00
+	//     Global reserve:                        5767168      (used: 0)
+	//     Multiple profiles:                          no
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		// Look for the "Free (estimated)" line
+		if strings.Contains(line, "Free (estimated):") {
+			// Extract the number from the line
+			// Format: "    Free (estimated):                  10183770112      (min: 5096079360)"
+			fields := strings.Fields(line)
+			if len(fields) >= 3 {
+				// The number should be the 3rd field (index 2)
+				availableStr := fields[2]
+				availableBytes, err := strconv.ParseInt(availableStr, 10, 64)
+				if err != nil {
+					return 0, fmt.Errorf("failed to parse free estimated space: %v", err)
+				}
+
+				klog.Infof("Available space on %s: %d bytes (Free estimated)", BtrfsRootPath, availableBytes)
+				return availableBytes, nil
+			}
+		}
+	}
+
+	return 0, fmt.Errorf("could not find 'Free (estimated)' in btrfs filesystem usage output")
+}
+
 // Initialize BtrfsManager in the driver
 func (d *BtrfsDriver) initBtrfsManager() error {
 	d.btrfsManager = NewBtrfsManager()

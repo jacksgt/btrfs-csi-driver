@@ -47,21 +47,19 @@ func NewBtrfsDriver(nodeID, endpoint, kubeconfig string, controller bool) (*Btrf
 		kubeconfig: kubeconfig,
 	}
 
-	// Add controller capabilities only if running as controller
-	if controller {
-		btrfsDriver.CSIDriver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
-			csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-			csi.ControllerServiceCapability_RPC_GET_VOLUME,
-			csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
-		})
-		klog.Infof("Initialized as controller service")
-	} else {
-		// Initialize Btrfs manager only for node service
-		if err := btrfsDriver.initBtrfsManager(); err != nil {
-			return nil, fmt.Errorf("failed to initialize Btrfs manager: %v", err)
-		}
-		klog.Infof("Initialized as node service with Btrfs support")
+	// Advertise controller capabilities
+	btrfsDriver.CSIDriver.AddControllerServiceCapabilities([]csi.ControllerServiceCapability_RPC_Type{
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+		csi.ControllerServiceCapability_RPC_GET_VOLUME,
+		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+	})
+	klog.Infof("Initialized as controller service")
+
+	// Initialize node service
+	if err := btrfsDriver.initBtrfsManager(); err != nil {
+		return nil, fmt.Errorf("failed to initialize Btrfs manager: %v", err)
 	}
+	klog.Infof("Initialized as node service with Btrfs support")
 
 	return btrfsDriver, nil
 }

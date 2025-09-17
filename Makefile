@@ -52,32 +52,24 @@ docker-push:
 	docker push $(IMAGE)
 
 # Deploy to Kubernetes
-.PHONY: deploy
-deploy:
-	kubectl apply -f deploy/kubernetes/rbac.yaml
-	kubectl apply -f deploy/kubernetes/csi-driver.yaml
-	kubectl apply -f deploy/kubernetes/controller.yaml
-	kubectl apply -f deploy/kubernetes/daemonset.yaml
-	kubectl apply -f deploy/kubernetes/storageclass.yaml
+.PHONY: deploy-csi
+deploy-csi:
+	kubectl apply -f deploy/kubernetes/
 
 # Undeploy from Kubernetes
-.PHONY: undeploy
-undeploy:
-	kubectl delete -f deploy/kubernetes/storageclass.yaml --ignore-not-found=true
-	kubectl delete -f deploy/kubernetes/daemonset.yaml --ignore-not-found=true
-	kubectl delete -f deploy/kubernetes/controller.yaml --ignore-not-found=true
-	kubectl delete -f deploy/kubernetes/csi-driver.yaml --ignore-not-found=true
-	kubectl delete -f deploy/kubernetes/rbac.yaml --ignore-not-found=true
+.PHONY: undeploy-csi
+undeploy-csi:
+	kubectl delete -f deploy/kubernetes/ --ignore-not-found=true
 
 # Deploy test resources
 .PHONY: deploy-test
 deploy-test:
-	kubectl apply -f deploy/kubernetes/test-pvc.yaml
+	kubectl apply -f test/kubernetes/
 
 # Clean up test resources
 .PHONY: clean-test
 clean-test:
-	kubectl delete -f deploy/kubernetes/test-pvc.yaml --ignore-not-found=true
+	kubectl delete -f test/kubernetes/ --ignore-not-found=true
 
 # Check if Btrfs is available on nodes
 .PHONY: check-btrfs

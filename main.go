@@ -18,7 +18,7 @@ var (
 func main() {
 	// Parse our custom flags first
 	flag.Parse()
-	
+
 	// Initialize klog with a separate flag set to avoid conflicts
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)

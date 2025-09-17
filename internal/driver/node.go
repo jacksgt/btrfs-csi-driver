@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
@@ -63,12 +62,12 @@ func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 
 	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
-	
+
 	// Get pod information if available
 	podInfo := req.GetVolumeContext()["csi.storage.k8s.io/pod.name"]
 	podNamespace := req.GetVolumeContext()["csi.storage.k8s.io/pod.namespace"]
 	podUID := req.GetVolumeContext()["csi.storage.k8s.io/pod.uid"]
-	
+
 	klog.Infof("NodePublishVolume: pod info - name: %s, namespace: %s, uid: %s", podInfo, podNamespace, podUID)
 
 	// Create target directory
@@ -76,24 +75,15 @@ func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Errorf(codes.Internal, "failed to create target directory %s: %v", targetPath, err)
 	}
 
-	// Create Btrfs subvolume for this volume
+	// The subvolume should already exist (created in CreateVolume)
 	subvolumePath := filepath.Join("/var/lib/btrfs-csi", volumeID)
-	
-	// Get capacity from volume context (stored during CreateVolume)
-	capacity := int64(DefaultQuotaSize)
-	if capacityStr, exists := req.GetVolumeContext()["capacity"]; exists {
-		if parsedCapacity, err := strconv.ParseInt(capacityStr, 10, 64); err == nil {
-			capacity = parsedCapacity
-		}
-	}
-	
-	klog.Infof("NodePublishVolume: creating subvolume %s with capacity %d bytes", subvolumePath, capacity)
-	
-	if err := d.createBtrfsSubvolume(subvolumePath, capacity); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create btrfs subvolume: %v", err)
+
+	// Check if subvolume exists
+	if _, err := os.Stat(subvolumePath); os.IsNotExist(err) {
+		return nil, status.Errorf(codes.NotFound, "subvolume %s does not exist", subvolumePath)
 	}
 
-	// Mount the subvolume to target path
+	// Mount the existing subvolume to target path
 	if err := d.mountSubvolume(subvolumePath, targetPath); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to mount subvolume: %v", err)
 	}
@@ -117,18 +107,6 @@ func (d *BtrfsDriver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 	if err := d.unmountVolume(targetPath); err != nil {
 		klog.Warningf("Failed to unmount volume at %s: %v", targetPath, err)
 	}
-
-	// Remove target directory
-	if err := os.RemoveAll(targetPath); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to remove target directory %s: %v", targetPath, err)
-	}
-
-	// Note: We do not delete the Btrfs subvolume here to allow for potential reuse or delayed cleanup.
-	// If subvolume deletion is required, uncomment the following lines:
-	// subvolumePath := filepath.Join("/var/lib/btrfs-csi", volumeID)
-	// if err := d.deleteBtrfsSubvolume(subvolumePath); err != nil {
-	//     klog.Warningf("Failed to delete btrfs subvolume %s: %v", subvolumePath, err)
-	// }
 
 	klog.Infof("NodeUnpublishVolume: volume %s unpublished from %s", volumeID, targetPath)
 

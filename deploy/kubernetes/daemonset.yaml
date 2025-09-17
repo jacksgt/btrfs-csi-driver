@@ -58,7 +58,7 @@ spec:
               memory: "100Mi"
               cpu: "100m"
         - name: node-driver-registrar
-          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.8.0
+          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
@@ -79,6 +79,40 @@ spec:
               mountPath: /registration
             - name: kubelet-dir
               mountPath: /var/lib/kubelet
+          resources:
+            requests:
+              memory: "50Mi"
+              cpu: "10m"
+            limits:
+              memory: "100Mi"
+              cpu: "100m"
+        - name: csi-provisioner
+          image: registry.k8s.io/sig-storage/csi-provisioner:v5.3.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+            - "--leader-election=true"
+            - "--feature-gates=Topology=true"
+            - "--node-deployment"
+            - "--node-deployment-base-delay=20s"
+            - "--node-deployment-max-delay=60s"
+            - "--strict-topology"
+            - "--immediate-topology=false"
+            - "--leader-election-namespace=$(POD_NAMESPACE)"
+          env:
+            - name: ADDRESS
+              value: unix:///csi/csi.sock
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
           resources:
             requests:
               memory: "50Mi"

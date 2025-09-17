@@ -9,6 +9,6 @@ spec:
     - Persistent
   fsGroupPolicy: None
   requiresRepublish: false
-  storageCapacity: false # TODO: implement this
+  storageCapacity: true
   tokenRequests: []
   seLinuxMount: false
