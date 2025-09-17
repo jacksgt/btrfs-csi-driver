@@ -22,6 +22,7 @@ const (
 type BtrfsDriver struct {
 	*csicommon.CSIDriver
 	nodeID        string
+	endpoint      string
 	kubeconfig    string
 	btrfsManager  *BtrfsManager
 }
@@ -55,6 +56,7 @@ func NewBtrfsDriver(nodeID, endpoint, kubeconfig string) (*BtrfsDriver, error) {
 	btrfsDriver := &BtrfsDriver{
 		CSIDriver:  csiDriver,
 		nodeID:     nodeID,
+		endpoint:   endpoint,
 		kubeconfig: kubeconfig,
 	}
 
@@ -76,7 +78,7 @@ func NewBtrfsDriver(nodeID, endpoint, kubeconfig string) (*BtrfsDriver, error) {
 
 func (d *BtrfsDriver) Run() error {
 	s := csicommon.NewNonBlockingGRPCServer()
-	s.Start("unix://tmp/csi.sock", d, d, d)
+	s.Start(d.endpoint, d, d, d)
 	s.Wait()
 	return nil
 }

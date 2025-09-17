@@ -77,6 +77,8 @@ spec:
               mountPath: /csi
             - name: registration-dir
               mountPath: /registration
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
           resources:
             requests:
               memory: "50Mi"
@@ -100,7 +102,7 @@ spec:
         - name: btrfs-dir
           hostPath:
             path: /var/lib/btrfs-csi
-            type: DirectoryOrCreate
+            type: Directory
         - name: host-proc
           hostPath:
             path: /proc
