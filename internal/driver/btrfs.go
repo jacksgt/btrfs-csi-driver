@@ -170,13 +170,7 @@ func (d *BtrfsDriver) checkBtrfsSupport() error {
 	// Check if the root path is on a Btrfs filesystem
 	cmd = exec.Command("btrfs", "filesystem", "show", BtrfsRootPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		// If the path doesn't exist, create it and check if we can create a Btrfs filesystem
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(BtrfsRootPath, 0755); err != nil {
-				return fmt.Errorf("failed to create root directory: %v", err)
-			}
-		}
-		return fmt.Errorf("root path is not on a Btrfs filesystem: %v, output: %s", err, string(output))
+		return fmt.Errorf("path %s is not on a Btrfs filesystem: %v, output: %s", BtrfsRootPath, err, string(output))
 	}
 
 	klog.Infof("Btrfs support verified for path: %s", BtrfsRootPath)

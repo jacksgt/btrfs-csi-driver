@@ -19,8 +19,8 @@ spec:
       hostPID: true
       containers:
         - name: btrfs-csi-driver
-          image: btrfs-csi:latest
-          imagePullPolicy: Always
+          image: localhost:5000/btrfs-csi:latest
+          imagePullPolicy: Never
           args:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(KUBE_NODE_NAME)"
@@ -40,11 +40,16 @@ spec:
               mountPath: /csi
             - name: btrfs-dir
               mountPath: /var/lib/btrfs-csi
+              mountPropagation: "Bidirectional"
+            - name: host-proc
+              mountPath: /proc
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
             capabilities:
               add: ["SYS_ADMIN"]
+            runAsUser: 0
+            runAsGroup: 0
           resources:
             requests:
               memory: "50Mi"
@@ -96,6 +101,10 @@ spec:
           hostPath:
             path: /var/lib/btrfs-csi
             type: DirectoryOrCreate
+        - name: host-proc
+          hostPath:
+            path: /proc
+            type: Directory
       tolerations:
         - operator: Exists
           effect: NoSchedule

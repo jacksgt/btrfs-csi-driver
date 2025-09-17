@@ -28,28 +28,14 @@ RUN apk add --no-cache \
     util-linux \
     ca-certificates
 
-# Create non-root user
-RUN adduser -D -s /bin/sh btrfs-csi
-
 # Create necessary directories
-RUN mkdir -p /var/lib/btrfs-csi && \
-    chown btrfs-csi:btrfs-csi /var/lib/btrfs-csi
+RUN mkdir -p /var/lib/btrfs-csi
 
 # Copy binary from builder stage
-COPY --from=builder /app/btrfs-csi /bin/btrfs-csi
-
-# Set ownership and permissions
-RUN chown btrfs-csi:btrfs-csi /bin/btrfs-csi && \
-    chmod +x /bin/btrfs-csi
-
-# Switch to non-root user
-USER btrfs-csi
+COPY --from=builder /app/btrfs-csi /usr/bin/btrfs-csi
 
 # Set working directory
 WORKDIR /var/lib/btrfs-csi
 
-# Expose CSI socket
-VOLUME ["/var/lib/btrfs-csi"]
-
 # Run the driver
-ENTRYPOINT ["/bin/btrfs-csi"]
+ENTRYPOINT ["/usr/bin/btrfs-csi"]

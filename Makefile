@@ -41,6 +41,11 @@ deps:
 docker-build:
 	docker build -t $(IMAGE) .
 
+# Copy Docker image to k3s
+.PHONY: docker-copy
+docker-copy: docker-build
+	docker save $(IMAGE) | k3s ctr images import -
+
 # Push Docker image
 .PHONY: docker-push
 docker-push:
