@@ -61,6 +61,13 @@ deploy-csi:
 undeploy-csi:
 	kubectl delete -f deploy/kubernetes/ --ignore-not-found=true
 
+# Get logs from Kubernetes
+.PHONY: logs-csi
+logs-csi:
+	kubectl logs -n kube-system -l app=btrfs-csi-driver -c csi-provisioner --tail=-1
+	kubectl logs -n kube-system -l app=btrfs-csi-driver -c btrfs-csi-driver --tail=-1
+	kubectl logs -n kube-system -l app=btrfs-csi-driver -c node-driver-registrar --tail=-1
+
 # Deploy test resources
 .PHONY: deploy-test
 deploy-test:

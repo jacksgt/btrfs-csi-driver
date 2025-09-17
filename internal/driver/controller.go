@@ -180,6 +180,13 @@ func (d *BtrfsDriver) ControllerGetCapabilities(ctx context.Context, req *csi.Co
 				},
 			},
 		},
+		{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+				},
+			},
+		},
 	}
 
 	return &csi.ControllerGetCapabilitiesResponse{

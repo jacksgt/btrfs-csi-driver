@@ -97,8 +97,10 @@ spec:
             - "--node-deployment-base-delay=20s"
             - "--node-deployment-max-delay=60s"
             - "--strict-topology"
-            - "--immediate-topology=false"
-            - "--leader-election-namespace=$(POD_NAMESPACE)"
+            - "--extra-create-metadata"
+            - "--leader-election-namespace=$(NAMESPACE)"
+            - "--enable-capacity"
+            - "--capacity-ownerref-level=1"
           env:
             - name: ADDRESS
               value: unix:///csi/csi.sock
@@ -106,10 +108,14 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: POD_NAMESPACE
+            - name: NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           volumeMounts:
             - name: plugin-dir
               mountPath: /csi
