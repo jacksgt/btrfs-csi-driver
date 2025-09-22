@@ -17,13 +17,14 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o btrfs-csi main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o btrfs-csi-plugin main.go
 
 # Runtime stage
 FROM alpine:3.18
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apk update && \
+    apk add --no-cache \
     btrfs-progs \
     util-linux \
     ca-certificates
@@ -32,10 +33,10 @@ RUN apk add --no-cache \
 RUN mkdir -p /var/lib/btrfs-csi
 
 # Copy binary from builder stage
-COPY --from=builder /app/btrfs-csi /usr/bin/btrfs-csi
+COPY --from=builder /app/btrfs-csi-plugin /usr/bin/btrfs-csi-plugin
 
 # Set working directory
 WORKDIR /var/lib/btrfs-csi
 
 # Run the driver
-ENTRYPOINT ["/usr/bin/btrfs-csi"]
+ENTRYPOINT ["/usr/bin/btrfs-csi-plugin"]
