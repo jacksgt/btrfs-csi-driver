@@ -1,0 +1,28 @@
+name: Btrfs test
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install btrfs-progs
+      run: sudo apt-get update && sudo apt-get install -y btrfs-progs
+
+    - name: Create and mount btrfs image
+      run: |
+        fallocate -l 5G ~/btrfs.img
+        sudo mkfs.btrfs ~/btrfs.img
+        sudo mkdir /var/lib/btrfs-csi
+        sudo mount -o loop ~/btrfs.img /var/lib/btrfs-csi
+        sudo chown -R runner:runner /var/lib/btrfs-csi
+
+    - name: Run btrfs tests
+      run: |
+        echo "Running tests on the btrfs mount..." > /var/lib/btrfs-csi/test.txt
+        date >> /var/lib/btrfs-csi/test.txt
+        ls -l /var/lib/btrfs-csi
+        cat /var/lib/btrfs-csi/test.txt
