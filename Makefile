@@ -67,6 +67,7 @@ logs-csi:
 	kubectl logs -n kube-system -l app=btrfs-csi-driver -c csi-provisioner --tail=-1
 	kubectl logs -n kube-system -l app=btrfs-csi-driver -c btrfs-csi-driver --tail=-1
 	kubectl logs -n kube-system -l app=btrfs-csi-driver -c node-driver-registrar --tail=-1
+	kubectl logs -n kube-system -l app=btrfs-csi-driver -c csi-resizer --tail=-1
 
 # Deploy test resources
 .PHONY: deploy-test
@@ -77,6 +78,18 @@ deploy-test:
 .PHONY: clean-test
 clean-test:
 	kubectl delete -f test/kubernetes/ --ignore-not-found=true
+
+# Test volume expansion
+.PHONY: test-expansion
+test-expansion:
+	@echo "Testing volume expansion..."
+	kubectl apply -f test/kubernetes/test-volume-expansion.yaml
+	@echo "Expanding PVC from 1Gi to 2Gi..."
+	kubectl patch pvc btrfs-expansion-test-pvc -p '{"spec":{"resources":{"requests":{"storage":"2Gi"}}}}'
+	@echo "Waiting for expansion to complete..."
+	kubectl wait --for=condition=FileSystemResizePending pvc/btrfs-expansion-test-pvc --timeout=60s || true
+	@echo "Checking PVC status..."
+	kubectl get pvc btrfs-expansion-test-pvc
 
 # Check if Btrfs is available on nodes
 .PHONY: check-btrfs
@@ -114,9 +127,11 @@ help:
 	@echo "  docker-push  - Push Docker image to registry"
 	@echo "  deploy-csi   - Deploy CSI driver to Kubernetes"
 	@echo "  undeploy-csi - Remove CSI driver from Kubernetes"
-	@echo "  deploy-test  - Deploy test PVC and Pod"
-	@echo "  clean-test   - Remove test resources"
-	@echo "  check-btrfs  - Check Btrfs support on nodes"
-	@echo "  status       - Show driver status"
-	@echo "  all          - Build and deploy everything"
-	@echo "  help         - Show this help"
+	@echo "  deploy-test        - Deploy test PVC and Pod"
+	@echo "  deploy-expansion-test - Deploy volume expansion test resources"
+	@echo "  test-expansion     - Test volume expansion functionality"
+	@echo "  clean-test         - Remove test resources"
+	@echo "  check-btrfs        - Check Btrfs support on nodes"
+	@echo "  status             - Show driver status"
+	@echo "  all                - Build and deploy everything"
+	@echo "  help               - Show this help"

@@ -143,6 +143,8 @@ func (d *BtrfsDriver) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVo
 	}, nil
 }
 
+// Volume expansion is handled by the controller, not the node service
+// This allows for ONLINE and OFFLINE volume expansion
 func (d *BtrfsDriver) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }

@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -208,7 +209,44 @@ func (d *BtrfsDriver) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsR
 }
 
 func (d *BtrfsDriver) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	klog.Infof("ControllerExpandVolume: called with args %+v", req)
+
+	subvolumePath := req.GetVolumeId()
+
+	// Validate the request
+	if subvolumePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "volume ID is required")
+	}
+
+	capacityRange := req.GetCapacityRange()
+	if capacityRange == nil {
+		return nil, status.Error(codes.InvalidArgument, "capacity range is required")
+	}
+
+	newCapacityBytes := capacityRange.GetRequiredBytes()
+	if newCapacityBytes <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "required bytes must be greater than 0")
+	}
+
+	klog.Infof("ControllerExpandVolume: expanding volume %s to %d bytes", subvolumePath, newCapacityBytes)
+
+	// Check if subvolume exists
+	if _, err := os.Stat(subvolumePath); os.IsNotExist(err) {
+		return nil, status.Errorf(codes.NotFound, "subvolume %s does not exist", subvolumePath)
+	}
+
+	// Update the quota for the subvolume
+	if err := d.setSubvolumeQuota(subvolumePath, newCapacityBytes); err != nil {
+		klog.Errorf("Failed to expand subvolume %s to %d bytes: %v", subvolumePath, newCapacityBytes, err)
+		return nil, status.Errorf(codes.Internal, "failed to expand volume: %v", err)
+	}
+
+	klog.Infof("ControllerExpandVolume: successfully expanded volume %s to %d bytes", subvolumePath, newCapacityBytes)
+
+	return &csi.ControllerExpandVolumeResponse{
+		CapacityBytes:         newCapacityBytes,
+		NodeExpansionRequired: true, // Btrfs subvolumes need node-side expansion
+	}, nil
 }
 
 // Controller validation methods

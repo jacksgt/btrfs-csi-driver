@@ -1,0 +1,32 @@
+# kubectl patch pvc btrfs-expansion-test-pvc -p '{"spec":{"resources":{"requests":{"storage":"2Gi"}}}}'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: btrfs-expansion-test-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: btrfs-local
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: btrfs-expansion-test-pod
+spec:
+  containers:
+  - name: test-container
+    image: alpine:3.18
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do echo 'Hello from Btrfs CSI volume!' > /data/test.txt; df -h /data; sleep 30; done"]
+    volumeMounts:
+    - name: btrfs-volume
+      mountPath: /data
+  volumes:
+  - name: btrfs-volume
+    persistentVolumeClaim:
+      claimName: btrfs-expansion-test-pvc
+  restartPolicy: Never
+---

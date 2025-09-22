@@ -15,7 +15,7 @@ A Kubernetes Container Storage Interface (CSI) driver that provides persistent v
 - [ ] **Snapshot support**: Kubernetes VolumeSnapshots can be used to create btrfs subvolume snapshot
 - [x] **Metrics**: Volume usage information is exposed by the CSI driver (Kubernetes Kubelet exports these as Prometheus metrics)
 - [x] **Multiple StorageClasses**: the CSI driver serves multiple StorageClasses which can point to different btrfs filesystems
-- [ ] **Volume expansion**: allow increasing the size of a volume after creation
+- [x] **Volume expansion**: allow increasing the size of a volume after creation (online expansion supported)
 - [ ] **Volume specific configuration**: allow dis-/enabling Copy-on-Write (CoW) for individual btrfs subvolumes
 
 ## Prerequisites
@@ -66,6 +66,7 @@ kubectl exec -it btrfs-test-pod -- ls -la /data
 The driver is deployed as a single `DaemonSet` that is composed of:
 
 - **CSI Provisioner**: Main driver implementing the CSI interface, configured in *distributed provisioning* mode
+- **CSI Resizer**: Sidecar container that watches for PVC expansion requests and triggers volume expansion
 - **Btrfs Manager**: Handles Btrfs subvolume creation, deletion, and quota management
 - **Node Driver Registrar**: Sidecar container for node registration
 
@@ -86,6 +87,7 @@ metadata:
 provisioner: btrfs.csi.k8s.io
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
+allowVolumeExpansion: true
 ```
 
 ### PersistentVolumeClaim
@@ -103,6 +105,26 @@ spec:
       storage: 1Gi
   storageClassName: btrfs-local
 ```
+
+### Volume Expansion
+
+The driver supports **online volume expansion** - volumes can be expanded while they are in use without taking them offline. To expand a volume, simply update the PVC's storage request:
+
+```bash
+# Edit the PVC to increase storage
+kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"2Gi"}}}}'
+
+# Or edit the PVC directly
+kubectl edit pvc my-pvc
+```
+
+The driver will automatically:
+1. **CSI Resizer** detects the PVC size change and calls `ControllerExpandVolume`
+2. **Controller** updates the Btrfs subvolume quota to the new size
+3. **Node** refreshes the filesystem information via `NodeExpandVolume`
+4. The expanded capacity will be immediately available to the pod
+
+**Note**: Volume expansion requires the `allowVolumeExpansion: true` setting in the StorageClass.
 
 ## Development
 

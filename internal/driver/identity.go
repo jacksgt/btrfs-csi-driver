@@ -37,6 +37,13 @@ func (d *BtrfsDriver) GetPluginCapabilities(ctx context.Context, req *csi.GetPlu
 					},
 				},
 			},
+			{
+				Type: &csi.PluginCapability_VolumeExpansion_{
+					VolumeExpansion: &csi.PluginCapability_VolumeExpansion{
+						Type: csi.PluginCapability_VolumeExpansion_ONLINE,
+					},
+				},
+			},
 		},
 	}, nil
 }

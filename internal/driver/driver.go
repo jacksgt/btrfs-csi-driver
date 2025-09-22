@@ -44,6 +44,7 @@ func NewBtrfsDriver(nodeID, endpoint string) (*BtrfsDriver, error) {
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_GET_VOLUME,
 		csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+		csi.ControllerServiceCapability_RPC_EXPAND_VOLUME,
 	})
 	klog.Infof("Initialized as controller service")
 
