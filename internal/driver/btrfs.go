@@ -211,20 +211,6 @@ func (d *BtrfsDriver) getBtrfsAvailableSpace() (int64, error) {
 	}
 
 	// Parse the output to get "Free (estimated)" value
-	// Example output:
-	// Overall:
-	//     Device size:                       10737418240
-	//     Device allocated:                    562036736
-	//     Device unallocated:                10175381504
-	//     Device missing:                              0
-	//     Device slack:                                0
-	//     Used:                                   393216
-	//     Free (estimated):                  10183770112      (min: 5096079360)
-	//     Free (statfs, df):                 10182721536
-	//     Data ratio:                               1.00
-	//     Metadata ratio:                           2.00
-	//     Global reserve:                        5767168      (used: 0)
-	//     Multiple profiles:                          no
 
 	lines := strings.Split(string(output), "\n")
 	for _, line := range lines {
@@ -248,6 +234,128 @@ func (d *BtrfsDriver) getBtrfsAvailableSpace() (int64, error) {
 	}
 
 	return 0, fmt.Errorf("could not find 'Free (estimated)' in btrfs filesystem usage output")
+}
+
+type BtrfsFilesystemUsage struct {
+	DeviceSize        int64   // Device size in bytes
+	DeviceAllocated   int64   // Device allocated in bytes
+	DeviceUnallocated int64   // Device unallocated in bytes
+	DeviceMissing     int64   // Device missing in bytes
+	DeviceSlack       int64   // Device slack in bytes
+	Used              int64   // Used bytes
+	FreeEstimated     int64   // Free (estimated) bytes
+	FreeEstimatedMin  int64   // Free (estimated) min bytes
+	FreeStatfs        int64   // Free (statfs, df) bytes
+	DataRatio         float64 // Data ratio
+	MetadataRatio     float64 // Metadata ratio
+	GlobalReserve     int64   // Global reserve bytes
+	GlobalReserveUsed int64   // Global reserve used bytes
+	MultipleProfiles  bool    // Multiple profiles (true if "yes", false if "no")
+}
+
+// getBtrfsFilesystemUsage parses the output of 'btrfs filesystem usage' for volume usage statistics
+func (d *BtrfsDriver) getBtrfsFilesystemUsage(path string) (BtrfsFilesystemUsage, error) {
+	usage := BtrfsFilesystemUsage{}
+
+	// Use btrfs filesystem usage to get accurate usage statistics
+	cmd := exec.Command("btrfs", "filesystem", "usage", "--raw", path)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return usage, fmt.Errorf("failed to get btrfs filesystem usage: %v, output: %s", err, string(output))
+	}
+
+	// Example output:
+	// Overall:
+	//     Device size:                       10737418240
+	//     Device allocated:                    562036736
+	//     Device unallocated:                10175381504
+	//     Device missing:                              0
+	//     Device slack:                                0
+	//     Used:                                   393216
+	//     Free (estimated):                  10183770112      (min: 5096079360)
+	//     Free (statfs, df):                 10182721536
+	//     Data ratio:                               1.00
+	//     Metadata ratio:                           2.00
+	//     Global reserve:                        5767168      (used: 0)
+	//     Multiple profiles:                          no
+
+	// Parse the output to get the usage statistics
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			if fields[0] == "Device size:" {
+				usage.DeviceSize, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse device size: %v", err)
+				}
+			} else if fields[0] == "Device allocated:" {
+				usage.DeviceAllocated, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse device allocated: %v", err)
+				}
+			} else if fields[0] == "Device unallocated:" {
+				usage.DeviceUnallocated, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse device unallocated: %v", err)
+				}
+			} else if fields[0] == "Device missing:" {
+				usage.DeviceMissing, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse device missing: %v", err)
+				}
+			} else if fields[0] == "Device slack:" {
+				usage.DeviceSlack, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse device slack: %v", err)
+				}
+			} else if fields[0] == "Used:" {
+				usage.Used, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse used: %v", err)
+				}
+			} else if fields[0] == "Free (estimated):" {
+				usage.FreeEstimated, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse free estimated: %v", err)
+				}
+			} else if fields[0] == "Free (estimated) min:" {
+				usage.FreeEstimatedMin, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse free estimated min: %v", err)
+				}
+			} else if fields[0] == "Free (statfs, df):" {
+				usage.FreeStatfs, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse free statfs: %v", err)
+				}
+			} else if fields[0] == "Data ratio:" {
+				usage.DataRatio, err = strconv.ParseFloat(fields[1], 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse data ratio: %v", err)
+				}
+			} else if fields[0] == "Metadata ratio:" {
+				usage.MetadataRatio, err = strconv.ParseFloat(fields[1], 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse metadata ratio: %v", err)
+				}
+			} else if fields[0] == "Global reserve:" {
+				usage.GlobalReserve, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse global reserve: %v", err)
+				}
+			} else if fields[0] == "Global reserve used:" {
+				usage.GlobalReserveUsed, err = strconv.ParseInt(fields[1], 10, 64)
+				if err != nil {
+					return usage, fmt.Errorf("failed to parse global reserve used: %v", err)
+				}
+			}
+		}
+	}
+
+	klog.V(6).Infof("Btrfs filesystem usage of %s: %+v", path, usage)
+
+	return usage, nil
 }
 
 // Initialize BtrfsManager in the driver

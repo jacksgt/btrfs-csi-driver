@@ -142,20 +142,17 @@ func (d *BtrfsDriver) ListVolumes(ctx context.Context, req *csi.ListVolumesReque
 func (d *BtrfsDriver) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	klog.Infof("GetCapacity: called with args %+v", req)
 
-	// For node-deployed external-provisioner, we need to return the available capacity
-	// on this specific node. Since we're using Btrfs subvolumes, we can check the
-	// available space on the Btrfs filesystem.
-
 	// Get available space on the Btrfs filesystem
-	availableBytes, err := d.getBtrfsAvailableSpace()
+	subvolumeRoot := d.getSubvolumeRootFromVolumeContext(req.GetParameters())
+	usage, err := d.getBtrfsFilesystemUsage(subvolumeRoot)
 	if err != nil {
-		klog.Errorf("Failed to get Btrfs available space: %v", err)
+		klog.Errorf("Failed to get Btrfs filesystem usage: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to get available space: %v", err)
 	}
 
 	// Return the available capacity
 	return &csi.GetCapacityResponse{
-		AvailableCapacity: availableBytes,
+		AvailableCapacity: usage.FreeEstimated,
 	}, nil
 }
 

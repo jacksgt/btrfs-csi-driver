@@ -112,7 +112,35 @@ func (d *BtrfsDriver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 }
 
 func (d *BtrfsDriver) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "")
+	klog.Infof("NodeGetVolumeStats: called with args %+v", req)
+
+	// Validate the request
+	if req.GetVolumeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "volume ID is required")
+	}
+
+	volumePath := req.GetVolumePath()
+	if volumePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "volume path is required")
+	}
+
+	// Get volume statistics using btrfs commands
+	usage, err := d.getBtrfsFilesystemUsage(volumePath)
+	if err != nil {
+		klog.Errorf("Failed to get volume stats for %s: %v", volumePath, err)
+		return nil, status.Errorf(codes.Internal, "failed to get volume stats: %v", err)
+	}
+
+	return &csi.NodeGetVolumeStatsResponse{
+		Usage: []*csi.VolumeUsage{
+			{
+				Unit:      csi.VolumeUsage_BYTES,
+				Available: usage.FreeEstimated,
+				Total:     usage.DeviceSize,
+				Used:      usage.Used,
+			},
+		},
+	}, nil
 }
 
 func (d *BtrfsDriver) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {

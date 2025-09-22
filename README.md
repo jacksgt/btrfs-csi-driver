@@ -11,9 +11,9 @@ A Kubernetes Container Storage Interface (CSI) driver that provides persistent v
 - [x] **Dynamic provisioning of Btrfs Subvolumes**: Each persistent volume is created as a Btrfs subvolume
 - [x] **Quota Support**: Automatic quota management for volume size limits
 - [x] **Capacity information**: [Storage Capacity](https://kubernetes.io/docs/concepts/storage/storage-capacity/) is exposed to help the scheduler make decisions
-- [ ] **Kubernetes Native**: Full CSI compliance with Kubernetes
+- [x] **Container Native**: Full CSI compliance, can be used on Kubernetes or other container orchestrators
 - [ ] **Snapshot support**: Kubernetes VolumeSnapshots can be used to create btrfs subvolume snapshot
-- [ ] **Metrics**: Prometheus metrics regarding volume usage are exported by the CSI driver
+- [x] **Metrics**: Volume usage information is exposed by the CSI driver (Kubernetes Kubelet exports these as Prometheus metrics)
 - [x] **Multiple StorageClasses**: the CSI driver serves multiple StorageClasses which can point to different btrfs filesystems
 - [ ] **Volume expansion**: allow increasing the size of a volume after creation
 - [ ] **Volume specific configuration**: allow dis-/enabling Copy-on-Write (CoW) for individual btrfs subvolumes
