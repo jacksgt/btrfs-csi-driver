@@ -16,6 +16,7 @@ A Kubernetes Container Storage Interface (CSI) driver that provides persistent v
 - [x] **Metrics**: Volume usage information is exposed by the CSI driver (Kubernetes Kubelet exports these as Prometheus metrics)
 - [x] **Multiple StorageClasses**: the CSI driver serves multiple StorageClasses which can point to different btrfs filesystems
 - [x] **Volume expansion**: allow increasing the size of a volume after creation (online expansion supported)
+- [ ] **Volume cloning**: Existing PVCs can be atomically copied to a new PVC by using Btrfs snapshots
 - [ ] **Volume specific configuration**: allow dis-/enabling Copy-on-Write (CoW) for individual btrfs subvolumes
 
 ## Prerequisites
@@ -67,8 +68,8 @@ The driver is deployed as a single `DaemonSet` that is composed of:
 
 - **CSI Provisioner**: Main driver implementing the CSI interface, configured in *distributed provisioning* mode
 - **CSI Resizer**: Sidecar container that watches for PVC expansion requests and triggers volume expansion
-- **Btrfs Manager**: Handles Btrfs subvolume creation, deletion, and quota management
 - **Node Driver Registrar**: Sidecar container for node registration
+- **Btrfs Plugin**: Handles Btrfs subvolume creation, deletion, and quota management
 
 ## Volume Lifecycle
 
@@ -118,11 +119,8 @@ kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"2Gi"}}
 kubectl edit pvc my-pvc
 ```
 
-The driver will automatically:
-1. **CSI Resizer** detects the PVC size change and calls `ControllerExpandVolume`
-2. **Controller** updates the Btrfs subvolume quota to the new size
-3. **Node** refreshes the filesystem information via `NodeExpandVolume`
-4. The expanded capacity will be immediately available to the pod
+The driver will automatically updates the Btrfs subvolume quota (if enabled) to the new size.
+The expanded capacity will be immediately available to the pod.
 
 **Note**: Volume expansion requires the `allowVolumeExpansion: true` setting in the StorageClass.
 

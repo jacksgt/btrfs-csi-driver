@@ -249,6 +249,13 @@ func (d *BtrfsDriver) ControllerExpandVolume(ctx context.Context, req *csi.Contr
 	}, nil
 }
 
+func (d *BtrfsDriver) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
+	klog.Infof("ControllerModifyVolume: called with args %+v", req)
+
+	// Btrfs CSI driver doesn't support volume modification
+	return nil, status.Error(codes.Unimplemented, "volume modification is not supported")
+}
+
 // Controller validation methods
 func (d *BtrfsDriver) validateCreateVolumeRequest(req *csi.CreateVolumeRequest) error {
 	if req.GetName() == "" {

@@ -30,6 +30,16 @@ clean:
 test:
 	$(GOTEST) -v ./...
 
+# Run sanity tests (requires Btrfs)
+.PHONY: test-sanity
+test-sanity:
+	$(GOTEST) -v -tags=btrfs ./internal/driver -run TestSanity
+
+# Run all tests including sanity tests
+.PHONY: test-all
+test-all:
+	$(GOTEST) -v ./...
+
 # Download dependencies
 .PHONY: deps
 deps:
@@ -122,6 +132,8 @@ help:
 	@echo "  build        - Build the Go binary"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  test         - Run tests"
+	@echo "  test-sanity  - Run CSI sanity tests (requires Btrfs)"
+	@echo "  test-all     - Run all tests including sanity tests"
 	@echo "  deps         - Download and tidy dependencies"
 	@echo "  docker-build - Build Docker image"
 	@echo "  docker-push  - Push Docker image to registry"
