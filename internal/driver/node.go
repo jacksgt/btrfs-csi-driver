@@ -3,7 +3,6 @@ package driver
 import (
 	"context"
 	"os"
-	"path/filepath"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
@@ -62,23 +61,16 @@ func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, err
 	}
 
-	volumeID := req.GetVolumeId()
-	targetPath := req.GetTargetPath()
-
-	// Create target directory
-	if err := os.MkdirAll(targetPath, 0755); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create target directory %s: %v", targetPath, err)
-	}
-
-	// Get subvolume root from volume context
-	subvolumeRoot := d.getSubvolumeRootFromVolumeContext(req.GetVolumeContext())
-
-	// The subvolume should already exist (created in CreateVolume)
-	subvolumePath := filepath.Join(subvolumeRoot, volumeID)
-
+	subvolumePath := req.GetVolumeId()
 	// Check if subvolume exists
 	if _, err := os.Stat(subvolumePath); os.IsNotExist(err) {
 		return nil, status.Errorf(codes.NotFound, "subvolume %s does not exist", subvolumePath)
+	}
+
+	targetPath := req.GetTargetPath()
+	// Create target directory
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create target directory %s: %v", targetPath, err)
 	}
 
 	// Mount the existing subvolume to target path
@@ -86,7 +78,7 @@ func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 		return nil, status.Errorf(codes.Internal, "failed to mount subvolume: %v", err)
 	}
 
-	klog.Infof("NodePublishVolume: volume %s mounted at %s", volumeID, targetPath)
+	klog.Infof("NodePublishVolume: volume %s mounted at %s", subvolumePath, targetPath)
 
 	return &csi.NodePublishVolumeResponse{}, nil
 }

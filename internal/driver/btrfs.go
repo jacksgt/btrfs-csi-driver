@@ -228,9 +228,6 @@ func (d *BtrfsDriver) getBtrfsFilesystemUsage(path string) (BtrfsFilesystemUsage
 				value = strings.Fields(fields[1])[0]
 			}
 			switch key {
-			case "Overall":
-				// ignore header line
-				continue
 			case "Device size":
 				usage.DeviceSize, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
@@ -286,8 +283,6 @@ func (d *BtrfsDriver) getBtrfsFilesystemUsage(path string) (BtrfsFilesystemUsage
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse global reserve: %v", err)
 				}
-			default:
-				klog.V(6).Infof("Ignoring unknown key in btrfs filesystem usage: '%s', value: '%s'", key, value)
 			}
 		}
 	}
