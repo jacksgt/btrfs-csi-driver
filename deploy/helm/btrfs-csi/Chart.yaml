@@ -1,0 +1,16 @@
+apiVersion: v2
+name: btrfs-csi
+description: A Helm chart for Btrfs CSI Driver
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - csi
+  - storage
+  - btrfs
+home: https://github.com/jacksgt/btrfs-csi
+sources:
+  - https://github.com/jacksgt/btrfs-csi
+maintainers:
+  - name: jacksgt
+    email: jacksgt@example.com

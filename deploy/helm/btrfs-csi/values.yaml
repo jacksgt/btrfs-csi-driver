@@ -1,0 +1,76 @@
+nameOverride: ''
+fullnameOverride: ''
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  annotations: {}
+  name: ''
+
+csiPlugin:
+  image:
+    repository: ghcr.io/jacksgt/btrfs-csi-driver/plugin
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources: {}
+
+csiProvisioner:
+  image:
+    repository: registry.k8s.io/sig-storage/csi-provisioner
+    tag: v5.3.0
+    pullPolicy: IfNotPresent
+  resources: {}
+
+csiResizer:
+  image:
+    repository: registry.k8s.io/sig-storage/csi-resizer
+    tag: v1.13.0
+    pullPolicy: IfNotPresent
+  resources: {}
+
+csiNodeDriverRegistrar:
+  image:
+    repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+    tag: v2.14.0
+    pullPolicy: IfNotPresent
+  resources: {}
+
+daemonset:
+  nodeSelector: {}
+  # scheduler.affinity -- Specify affinity for the DaemonSet.
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity:
+    # nodeAffinity:
+    #   requiredDuringSchedulingIgnoredDuringExecution:
+    #     nodeSelectorTerms:
+    #       - matchExpressions:
+    #           - key: node-role.kubernetes.io/control-plane
+    #             operator: Exists
+
+  # scheduler.priorityClassName -- Specify priorityClassName on the Deployment or DaemonSet.
+  priorityClassName: system-cluster-critical
+  # tolerations for DaemonSet
+  # ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+  tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/master
+      operator: Exists
+  resources: {}
+  updateStrategy: {}
+  #  rollingUpdate:
+  #    maxUnavailable: 1
+  #  type: RollingUpdate
+  podAnnotations: {}
+
+storageClasses:
+  - name: btrfs-csi
+    provisioner: btrfs.csi.k8s.io
+    # "Delete" or "Retain" PVs after deleting PVCs
+    reclaimPolicy: Delete
+    # Additional annotations
+    annotations: {} 
+    # Default storage class for dynamic volume provisioning
+    # ref: https://kubernetes.io/docs/concepts/storage/dynamic-provisioning
+    isDefaultClass: false
+    parameters:
+      subvolumeRoot: /var/lib/btrfs-csi

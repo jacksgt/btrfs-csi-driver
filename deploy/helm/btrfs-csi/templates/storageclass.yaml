@@ -1,0 +1,24 @@
+{{- range .Values.storageClasses }}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .name }}
+  {{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .isDefaultClass }}
+    storageclass.kubernetes.io/is-default-class: "true"
+  {{- end }}
+  labels:
+    {{- include "btrfs-csi.labels" $ | nindent 4 }}
+provisioner: {{ .provisioner }}
+{{- with .parameters }}
+parameters:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: {{ .reclaimPolicy }}
+allowVolumeExpansion: true
+{{- end }}

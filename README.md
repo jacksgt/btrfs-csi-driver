@@ -62,6 +62,24 @@ kubectl get pods -l app=btrfs-test-pod
 kubectl exec -it btrfs-test-pod -- ls -la /data
 ```
 
+## Helm Chart
+
+The Helm chart is recommended for deployment of the Btrfs CSI Driver on Kubernetes.
+The chart supports extensive configuration through values. 
+Please refer to the [Helm chart README](./deploy/helm/btrfs-csi/README.md) for detailed configuration options and examples.
+
+```bash
+# Install the chart
+helm install btrfs-csi ./deploy/helm/btrfs-csi
+
+# Install with custom values
+helm install btrfs-csi ./deploy/helm/btrfs-csi -f custom-values.yaml
+
+# Install in a specific namespace
+helm install btrfs-csi ./deploy/helm/btrfs-csi --namespace kube-system
+```
+
+
 ## Architecture
 
 The driver is deployed as a single `DaemonSet` that is composed of:

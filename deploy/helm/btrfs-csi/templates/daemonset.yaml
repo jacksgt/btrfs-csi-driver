@@ -1,0 +1,191 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "btrfs-csi.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "btrfs-csi.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "btrfs-csi.selectorLabels" . | nindent 6 }}
+  {{- with .Values.daemonset.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      {{- with .Values.daemonset.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "btrfs-csi.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "btrfs-csi.serviceAccountName" . }}
+      hostNetwork: true
+      hostPID: true
+      {{- with .Values.daemonset.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.daemonset.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.daemonset.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.daemonset.priorityClassName }}
+      priorityClassName: {{ .Values.daemonset.priorityClassName }}
+      {{- end }}
+      containers:
+        - name: btrfs-csi-plugin
+          image: {{ include "btrfs-csi.pluginImage" . }}
+          imagePullPolicy: {{ .Values.csiPlugin.image.pullPolicy }}
+          args:
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--nodeid=$(KUBE_NODE_NAME)"
+            - "--v=5"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: "Bidirectional"
+            - name: plugin-dir
+              mountPath: /csi
+            - name: btrfs-dir
+              mountPath: /var/lib/btrfs-csi
+              mountPropagation: "Bidirectional"
+            - name: host-proc
+              mountPath: /proc
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            runAsUser: 0
+            runAsGroup: 0
+          {{- with .Values.csiPlugin.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        - name: node-driver-registrar
+          image: {{ include "btrfs-csi.nodeDriverRegistrarImage" . }}
+          imagePullPolicy: {{ .Values.csiNodeDriverRegistrar.image.pullPolicy }}
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/{{ include "btrfs-csi.driverName" . }}/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+          {{- with .Values.csiNodeDriverRegistrar.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        - name: csi-provisioner
+          image: {{ include "btrfs-csi.provisionerImage" . }}
+          imagePullPolicy: {{ .Values.csiProvisioner.image.pullPolicy }}
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+            - "--leader-election=true"
+            - "--feature-gates=Topology=true"
+            - "--node-deployment"
+            - "--node-deployment-base-delay=20s"
+            - "--node-deployment-max-delay=60s"
+            - "--strict-topology"
+            - "--extra-create-metadata"
+            - "--leader-election-namespace=$(NAMESPACE)"
+            - "--enable-capacity"
+            - "--capacity-ownerref-level=1"
+          env:
+            - name: ADDRESS
+              value: unix:///csi/csi.sock
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+          {{- with .Values.csiProvisioner.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        - name: csi-resizer
+          image: {{ include "btrfs-csi.resizerImage" . }}
+          imagePullPolicy: {{ .Values.csiResizer.image.pullPolicy }}
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+            - "--leader-election=true"
+            - "--leader-election-namespace=$(NAMESPACE)"
+          env:
+            - name: ADDRESS
+              value: unix:///csi/csi.sock
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+          {{- with .Values.csiResizer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: kubelet-dir
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/{{ include "btrfs-csi.driverName" . }}
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry
+            type: Directory
+        - name: btrfs-dir
+          hostPath:
+            path: /var/lib/btrfs-csi
+            type: Directory
+        - name: host-proc
+          hostPath:
+            path: /proc
+            type: Directory
