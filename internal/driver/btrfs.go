@@ -222,6 +222,11 @@ func (d *BtrfsDriver) getBtrfsFilesystemUsage(path string) (BtrfsFilesystemUsage
 		if len(fields) >= 2 {
 			key := strings.TrimSpace(fields[0])
 			value := strings.TrimSpace(fields[1])
+			if value != "" {
+				// required for lines that have trailing output, e.g.
+				// `10183770112      (min: 5096079360)`
+				value = strings.Fields(fields[1])[0]
+			}
 			switch key {
 			case "Overall":
 				// ignore header line
