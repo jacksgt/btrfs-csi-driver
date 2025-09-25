@@ -4,12 +4,14 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: {{ .name }}
-  {{- with .annotations }}
+  {{- if or .annotations .isDefaultClass }}
   annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-  {{- if .isDefaultClass }}
+    {{- if .isDefaultClass }}
     storageclass.kubernetes.io/is-default-class: "true"
+    {{- end }}
+    {{- with .annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   {{- end }}
   labels:
     {{- include "btrfs-csi.labels" $ | nindent 4 }}

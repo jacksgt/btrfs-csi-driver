@@ -10,8 +10,8 @@ serviceAccount:
 csiPlugin:
   image:
     repository: ghcr.io/jacksgt/btrfs-csi-driver/plugin
-    tag: latest
-    pullPolicy: IfNotPresent
+    tag: main
+    pullPolicy: Always
   resources: {}
 
 csiProvisioner:
@@ -24,7 +24,7 @@ csiProvisioner:
 csiResizer:
   image:
     repository: registry.k8s.io/sig-storage/csi-resizer
-    tag: v1.13.0
+    tag: v1.14.0
     pullPolicy: IfNotPresent
   resources: {}
 
