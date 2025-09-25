@@ -47,7 +47,7 @@ spec:
           args:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(KUBE_NODE_NAME)"
-            - "--v=5"
+            - "--v=6"
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock

@@ -148,35 +148,6 @@ func (d *BtrfsDriver) unmountVolume(targetPath string) error {
 	return nil
 }
 
-// getSubvolumeInfo gets information about a Btrfs subvolume
-func (d *BtrfsDriver) getSubvolumeInfo(subvolumePath string) (*SubvolumeInfo, error) {
-	// Get subvolume ID
-	cmd := exec.Command("btrfs", "subvolume", "show", subvolumePath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subvolume info: %v, output: %s", err, string(output))
-	}
-
-	info := &SubvolumeInfo{
-		Path: subvolumePath,
-	}
-
-	// Parse output to extract subvolume ID
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "Subvolume ID:") {
-			parts := strings.Fields(line)
-			if len(parts) >= 3 {
-				if id, err := strconv.Atoi(parts[2]); err == nil {
-					info.ID = id
-				}
-			}
-		}
-	}
-
-	return info, nil
-}
-
 // checkBtrfsSupport checks if Btrfs is supported on the system
 func (d *BtrfsDriver) checkBtrfsSupport() error {
 	// Check if btrfs command is available
@@ -199,41 +170,6 @@ func (d *BtrfsDriver) checkBtrfsSupport() error {
 type SubvolumeInfo struct {
 	ID   int
 	Path string
-}
-
-// getBtrfsAvailableSpace returns the available space on the Btrfs filesystem
-func (d *BtrfsDriver) getBtrfsAvailableSpace() (int64, error) {
-	// Use btrfs filesystem usage to get accurate available space
-	cmd := exec.Command("btrfs", "filesystem", "usage", "--raw", BtrfsRootPath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get btrfs filesystem usage: %v, output: %s", err, string(output))
-	}
-
-	// Parse the output to get "Free (estimated)" value
-
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
-		// Look for the "Free (estimated)" line
-		if strings.Contains(line, "Free (estimated):") {
-			// Extract the number from the line
-			// Format: "    Free (estimated):                  10183770112      (min: 5096079360)"
-			fields := strings.Fields(line)
-			if len(fields) >= 3 {
-				// The number should be the 3rd field (index 2)
-				availableStr := fields[2]
-				availableBytes, err := strconv.ParseInt(availableStr, 10, 64)
-				if err != nil {
-					return 0, fmt.Errorf("failed to parse free estimated space: %v", err)
-				}
-
-				klog.Infof("Available space on %s: %d bytes (Free estimated)", BtrfsRootPath, availableBytes)
-				return availableBytes, nil
-			}
-		}
-	}
-
-	return 0, fmt.Errorf("could not find 'Free (estimated)' in btrfs filesystem usage output")
 }
 
 type BtrfsFilesystemUsage struct {
@@ -282,78 +218,75 @@ func (d *BtrfsDriver) getBtrfsFilesystemUsage(path string) (BtrfsFilesystemUsage
 	// Parse the output to get the usage statistics
 	lines := strings.Split(string(output), "\n")
 	for _, line := range lines {
-		fields := strings.Fields(line)
+		fields := strings.Split(line, ":")
 		if len(fields) >= 2 {
-			if fields[0] == "Device size:" {
-				usage.DeviceSize, err = strconv.ParseInt(fields[1], 10, 64)
+			key := strings.TrimSpace(fields[0])
+			value := strings.TrimSpace(fields[1])
+			switch key {
+			case "Overall":
+				// ignore header line
+				continue
+			case "Device size":
+				usage.DeviceSize, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse device size: %v", err)
 				}
-			} else if fields[0] == "Device allocated:" {
-				usage.DeviceAllocated, err = strconv.ParseInt(fields[1], 10, 64)
+			case "Device allocated":
+				usage.DeviceAllocated, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse device allocated: %v", err)
 				}
-			} else if fields[0] == "Device unallocated:" {
-				usage.DeviceUnallocated, err = strconv.ParseInt(fields[1], 10, 64)
+			case "Device unallocated":
+				usage.DeviceUnallocated, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse device unallocated: %v", err)
 				}
-			} else if fields[0] == "Device missing:" {
-				usage.DeviceMissing, err = strconv.ParseInt(fields[1], 10, 64)
+			case "Device missing":
+				usage.DeviceMissing, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse device missing: %v", err)
 				}
-			} else if fields[0] == "Device slack:" {
-				usage.DeviceSlack, err = strconv.ParseInt(fields[1], 10, 64)
+			case "Device slack":
+				usage.DeviceSlack, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse device slack: %v", err)
 				}
-			} else if fields[0] == "Used:" {
-				usage.Used, err = strconv.ParseInt(fields[1], 10, 64)
+			case "Used":
+				usage.Used, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse used: %v", err)
 				}
-			} else if fields[0] == "Free (estimated):" {
-				usage.FreeEstimated, err = strconv.ParseInt(fields[1], 10, 64)
+			case "Free (estimated)":
+				usage.FreeEstimated, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse free estimated: %v", err)
 				}
-			} else if fields[0] == "Free (estimated) min:" {
-				usage.FreeEstimatedMin, err = strconv.ParseInt(fields[1], 10, 64)
-				if err != nil {
-					return usage, fmt.Errorf("failed to parse free estimated min: %v", err)
-				}
-			} else if fields[0] == "Free (statfs, df):" {
-				usage.FreeStatfs, err = strconv.ParseInt(fields[1], 10, 64)
+			case "Free (statfs, df)":
+				usage.FreeStatfs, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse free statfs: %v", err)
 				}
-			} else if fields[0] == "Data ratio:" {
-				usage.DataRatio, err = strconv.ParseFloat(fields[1], 64)
+			case "Data ratio":
+				usage.DataRatio, err = strconv.ParseFloat(value, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse data ratio: %v", err)
 				}
-			} else if fields[0] == "Metadata ratio:" {
-				usage.MetadataRatio, err = strconv.ParseFloat(fields[1], 64)
+			case "Metadata ratio":
+				usage.MetadataRatio, err = strconv.ParseFloat(value, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse metadata ratio: %v", err)
 				}
-			} else if fields[0] == "Global reserve:" {
-				usage.GlobalReserve, err = strconv.ParseInt(fields[1], 10, 64)
+			case "Global reserve":
+				usage.GlobalReserve, err = strconv.ParseInt(value, 10, 64)
 				if err != nil {
 					return usage, fmt.Errorf("failed to parse global reserve: %v", err)
 				}
-			} else if fields[0] == "Global reserve used:" {
-				usage.GlobalReserveUsed, err = strconv.ParseInt(fields[1], 10, 64)
-				if err != nil {
-					return usage, fmt.Errorf("failed to parse global reserve used: %v", err)
-				}
+			default:
+				klog.V(6).Infof("Ignoring unknown key in btrfs filesystem usage: '%s', value: '%s'", key, value)
 			}
 		}
 	}
-
-	klog.V(6).Infof("Btrfs filesystem usage of %s: %+v", path, usage)
+	klog.V(6).Infof("Btrfs filesystem usage of %s: %#v", path, usage)
 
 	return usage, nil
 }
