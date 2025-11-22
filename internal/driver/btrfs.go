@@ -294,5 +294,6 @@ func (d *BtrfsDriver) getBtrfsFilesystemUsage(path string) (BtrfsFilesystemUsage
 // Initialize BtrfsManager in the driver
 func (d *BtrfsDriver) initBtrfsManager() error {
 	d.btrfsManager = NewBtrfsManager()
-	return d.checkBtrfsSupport()
+	// return d.checkBtrfsSupport()
+	return nil
 }

@@ -10,6 +10,7 @@ import (
 
 const (
 	DriverName = "btrfs.csi.k8s.io"
+	# TODO: dynamically set this during release
 	Version    = "0.0.1"
 )
 
