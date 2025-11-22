@@ -3,7 +3,7 @@ name: btrfs-csi
 description: A Helm chart for Btrfs CSI Driver
 type: application
 version: 0.1.0
-appVersion: "latest"
+appVersion: REPLACE_APP_VERSION
 keywords:
   - csi
   - storage

@@ -3,7 +3,7 @@ name: Publish Helm chart for CSI driver
 on:
   push:
     # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
+    tags: [ '([0-9]+)\.([0-9]+)\.([0-9]+)(-[a-zA-Z0-9]+)?' ]
 
 jobs:
   build:
@@ -20,6 +20,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set Chart's AppVersion
+        run: |
+          cd deploy/helm/btrfs-csi
+          sed -i "s/REPLACE_APP_VERSION/${{ github.ref_name }}/" Chart.yaml
+
       - name: Chart | Push
         uses: appany/helm-oci-chart-releaser@v0.5.0
         with:
@@ -28,5 +33,5 @@ jobs:
           repository: ${{ github.repository }}/charts
           tag: ${{ github.ref_name }}
           registry: ghcr.io
-          registry_username: ${{ secrets.REGISTRY_USERNAME }}
-          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry_username: ${{ github.actor }}
+          registry_password: ${{ secrets.GITHUB_TOKEN }}

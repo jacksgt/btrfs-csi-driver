@@ -72,7 +72,7 @@ Create the CSI driver name
 Create the full image name for the CSI plugin
 */}}
 {{- define "btrfs-csi.pluginImage" -}}
-{{- printf "%s:%s" .Values.csiPlugin.image.repository .Values.csiPlugin.image.tag }}
+{{- printf "%s:%s" .Values.csiPlugin.image.repository (.Values.csiPlugin.image.tag | default .Chart.AppVersion) }}
 {{- end }}
 
 {{/*

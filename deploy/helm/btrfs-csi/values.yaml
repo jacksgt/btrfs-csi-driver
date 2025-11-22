@@ -10,7 +10,7 @@ serviceAccount:
 csiPlugin:
   image:
     repository: ghcr.io/jacksgt/btrfs-csi-driver/plugin
-    tag: main
+    tag: null # If not set, defaults to Chart's AppVersion
     pullPolicy: Always
   resources: {}
 
@@ -68,7 +68,7 @@ storageClasses:
     # "Delete" or "Retain" PVs after deleting PVCs
     reclaimPolicy: Delete
     # Additional annotations
-    annotations: {} 
+    annotations: {}
     # Default storage class for dynamic volume provisioning
     # ref: https://kubernetes.io/docs/concepts/storage/dynamic-provisioning
     isDefaultClass: false
