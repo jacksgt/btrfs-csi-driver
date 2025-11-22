@@ -1,0 +1,32 @@
+name: Publish Helm chart for CSI driver
+
+on:
+  push:
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      # This is used to complete the identity challenge
+      # with sigstore/fulcio when running outside of PRs.
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Chart | Push
+        uses: appany/helm-oci-chart-releaser@v0.5.0
+        with:
+          name: btrfs-csi
+          path: deploy/helm/btrfs-csi
+          repository: ${{ github.repository }}/charts
+          tag: ${{ github.ref_name }}
+          registry: ghcr.io
+          registry_username: ${{ secrets.REGISTRY_USERNAME }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
