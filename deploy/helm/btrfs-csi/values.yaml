@@ -11,7 +11,7 @@ csiPlugin:
   image:
     repository: ghcr.io/jacksgt/btrfs-csi-driver/plugin
     tag: null # If not set, defaults to Chart's AppVersion
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
   resources: {}
 
 csiProvisioner:
