@@ -9,7 +9,7 @@ spec:
   podInfoOnMount: false
   volumeLifecycleModes:
     - Persistent
-  fsGroupPolicy: None
+  fsGroupPolicy: File
   requiresRepublish: false
   storageCapacity: true
   tokenRequests: []
