@@ -25,7 +25,6 @@ FROM alpine:3.22
 # Install runtime dependencies
 RUN apk update && \
     apk add --no-cache \
-    btrfs-progs \
     util-linux \
     ca-certificates
 

@@ -61,17 +61,19 @@ spec:
               mountPropagation: "Bidirectional"
             - name: plugin-dir
               mountPath: /csi
-            - name: btrfs-dir
-              # TODO: this needs to be dynamic, or mount the entire host
-              mountPath: /var/lib/btrfs-csi
+            - name: host-root
+              mountPath: /host
               mountPropagation: "Bidirectional"
-            - name: host-proc
-              mountPath: /proc
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
             capabilities:
-              add: ["SYS_ADMIN"]
+              # drop all capabilities, except:
+              drop: ["ALL"]
+              # except:
+              add:
+                - "SYS_ADMIN" # required for `mount` and `btrfs subvolume` commands
+                - "SYS_CHROOT" # required for `chroot` command
             runAsUser: 0
             runAsGroup: 0
           {{- with .Values.csiPlugin.resources }}
@@ -182,12 +184,7 @@ spec:
           hostPath:
             path: /var/lib/kubelet/plugins_registry
             type: Directory
-        # TODO: this needs to be dynamic, or mount the entire host
-        - name: btrfs-dir
+        - name: host-root
           hostPath:
-            path: /var/lib/btrfs-csi
-            type: Directory
-        - name: host-proc
-          hostPath:
-            path: /proc
+            path: /
             type: Directory

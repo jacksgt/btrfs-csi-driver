@@ -41,7 +41,7 @@ func (d *BtrfsDriver) createBtrfsSubvolume(subvolumePath string, sizeBytes int64
 	}
 
 	// Create the subvolume
-	cmd := exec.Command("btrfs", "subvolume", "create", subvolumePath)
+	cmd := exec.Command("chroot", "/host", "btrfs", "subvolume", "create", subvolumePath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to create btrfs subvolume: %v, output: %s", err, string(output))
 	}
@@ -69,7 +69,7 @@ func (d *BtrfsDriver) deleteBtrfsSubvolume(subvolumePath string) error {
 	}
 
 	// Delete the subvolume
-	cmd := exec.Command("btrfs", "subvolume", "delete", subvolumePath)
+	cmd := exec.Command("chroot", "/host", "btrfs", "subvolume", "delete", subvolumePath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to delete btrfs subvolume: %v, output: %s", err, string(output))
 	}
@@ -88,7 +88,7 @@ func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) e
 	// Convert bytes to a more readable format for btrfs
 	quotaSize := formatQuotaSize(sizeBytes)
 
-	cmd := exec.Command("btrfs", "qgroup", "limit", quotaSize, subvolumePath)
+	cmd := exec.Command("chroot", "/host", "btrfs", "qgroup", "limit", quotaSize, subvolumePath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to set quota: %v, output: %s", err, string(output))
 	}
@@ -99,7 +99,7 @@ func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) e
 
 // areQuotasEnabled checks if quotas are enabled without trying to enable them
 func (d *BtrfsDriver) areQuotasEnabled() bool {
-	cmd := exec.Command("btrfs", "qgroup", "show", BtrfsRootPath)
+	cmd := exec.Command("chroot", "/host", "btrfs", "qgroup", "show", BtrfsRootPath)
 	if err := cmd.Run(); err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
 			// Exit code 1 means quotas are not enabled
@@ -151,13 +151,13 @@ func (d *BtrfsDriver) unmountVolume(targetPath string) error {
 // checkBtrfsSupport checks if Btrfs is supported on the system
 func (d *BtrfsDriver) checkBtrfsSupport() error {
 	// Check if btrfs command is available
-	cmd := exec.Command("btrfs", "version")
+	cmd := exec.Command("chroot", "/host", "btrfs", "version")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("btrfs command not found: %v", err)
 	}
 
 	// Check if the root path is on a Btrfs filesystem
-	cmd = exec.Command("btrfs", "filesystem", "show", BtrfsRootPath)
+	cmd = exec.Command("chroot", "/host", "btrfs", "filesystem", "show", BtrfsRootPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("path %s is not on a Btrfs filesystem: %v, output: %s", BtrfsRootPath, err, string(output))
 	}
@@ -194,7 +194,7 @@ func (d *BtrfsDriver) getBtrfsFilesystemUsage(path string) (BtrfsFilesystemUsage
 	usage := BtrfsFilesystemUsage{}
 
 	// Use btrfs filesystem usage to get accurate usage statistics
-	cmd := exec.Command("btrfs", "filesystem", "usage", "--raw", path)
+	cmd := exec.Command("chroot", "/host", "btrfs", "filesystem", "usage", "--raw", path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return usage, fmt.Errorf("failed to get btrfs filesystem usage: %v, output: %s", err, string(output))

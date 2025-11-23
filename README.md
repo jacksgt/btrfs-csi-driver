@@ -23,6 +23,7 @@ A Kubernetes Container Storage Interface (CSI) driver that provides persistent v
 
 - Kubernetes cluster with CSI support
 - Nodes with at least one Btrfs filesystem
+- Nodes must have `btrfs` CLI installed (usually part of `btrfs-progs` package)
 
 ## Quick Start
 
@@ -65,7 +66,7 @@ kubectl exec -it btrfs-test-pod -- ls -la /data
 ## Helm Chart
 
 The Helm chart is recommended for deployment of the Btrfs CSI Driver on Kubernetes.
-The chart supports extensive configuration through values. 
+The chart supports extensive configuration through values.
 Please refer to the [Helm chart README](./deploy/helm/btrfs-csi/README.md) for detailed configuration options and examples.
 
 ```bash
