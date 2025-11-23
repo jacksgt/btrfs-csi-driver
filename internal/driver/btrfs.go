@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -11,9 +12,9 @@ import (
 )
 
 const (
-	// BtrfsRootPath is the default root path where Btrfs subvolumes will be created
-	// This is used for filesystem operations and as a fallback when no subvolumeRoot parameter is provided
-	BtrfsRootPath = "/var/lib/btrfs-csi"
+	// DefaultBtrfsPath is the default root path where Btrfs subvolumes will be created
+	// This is used as a fallback when no subvolumeRoot parameter is provided
+	DefaultBtrfsPath = "/var/lib/btrfs-csi"
 	// DefaultQuotaSize is the default quota size if not specified (1GB)
 	DefaultQuotaSize = 1073741824 // 1GB in bytes
 )
@@ -29,19 +30,14 @@ func NewBtrfsManager() *BtrfsManager {
 
 // createBtrfsSubvolume creates a new Btrfs subvolume with quota
 func (d *BtrfsDriver) createBtrfsSubvolume(subvolumePath string, sizeBytes int64) error {
-	// Ensure the root directory exists
-	if err := os.MkdirAll(BtrfsRootPath, 0755); err != nil {
-		return fmt.Errorf("failed to create root directory: %v", err)
-	}
-
 	// Check if subvolume already exists
-	if _, err := os.Stat(subvolumePath); err == nil {
+	if _, err := os.Stat(filepath.Join("/host", subvolumePath)); err == nil {
 		klog.Infof("Subvolume %s already exists", subvolumePath)
 		return nil
 	}
 
 	// Create the subvolume
-	cmd := exec.Command("chroot", "/host", "btrfs", "subvolume", "create", subvolumePath)
+	cmd := execWithLog("chroot", "/host", "btrfs", "subvolume", "create", subvolumePath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to create btrfs subvolume: %v, output: %s", err, string(output))
 	}
@@ -63,13 +59,13 @@ func (d *BtrfsDriver) createBtrfsSubvolume(subvolumePath string, sizeBytes int64
 // deleteBtrfsSubvolume deletes a Btrfs subvolume
 func (d *BtrfsDriver) deleteBtrfsSubvolume(subvolumePath string) error {
 	// Check if subvolume exists
-	if _, err := os.Stat(subvolumePath); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join("/host", subvolumePath)); os.IsNotExist(err) {
 		klog.Infof("Subvolume %s does not exist, skipping deletion", subvolumePath)
 		return nil
 	}
 
 	// Delete the subvolume
-	cmd := exec.Command("chroot", "/host", "btrfs", "subvolume", "delete", subvolumePath)
+	cmd := execWithLog("chroot", "/host", "btrfs", "subvolume", "delete", subvolumePath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to delete btrfs subvolume: %v, output: %s", err, string(output))
 	}
@@ -88,7 +84,7 @@ func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) e
 	// Convert bytes to a more readable format for btrfs
 	quotaSize := formatQuotaSize(sizeBytes)
 
-	cmd := exec.Command("chroot", "/host", "btrfs", "qgroup", "limit", quotaSize, subvolumePath)
+	cmd := execWithLog("chroot", "/host", "btrfs", "qgroup", "limit", quotaSize, subvolumePath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to set quota: %v, output: %s", err, string(output))
 	}
@@ -99,7 +95,7 @@ func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) e
 
 // areQuotasEnabled checks if quotas are enabled without trying to enable them
 func (d *BtrfsDriver) areQuotasEnabled() bool {
-	cmd := exec.Command("chroot", "/host", "btrfs", "qgroup", "show", BtrfsRootPath)
+	cmd := exec.Command("chroot", "/host", "btrfs", "qgroup", "show", DefaultBtrfsPath)
 	if err := cmd.Run(); err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
 			// Exit code 1 means quotas are not enabled
@@ -128,7 +124,7 @@ func formatQuotaSize(sizeBytes int64) string {
 // mountSubvolume mounts a Btrfs subvolume to the target path
 func (d *BtrfsDriver) mountSubvolume(subvolumePath, targetPath string) error {
 	// Use bind mount to mount the subvolume
-	cmd := exec.Command("mount", "--bind", subvolumePath, targetPath)
+	cmd := execWithLog("chroot", "/host", "mount", "--bind", subvolumePath, targetPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to bind mount subvolume: %v, output: %s", err, string(output))
 	}
@@ -139,7 +135,7 @@ func (d *BtrfsDriver) mountSubvolume(subvolumePath, targetPath string) error {
 
 // unmountVolume unmounts a volume from the target path
 func (d *BtrfsDriver) unmountVolume(targetPath string) error {
-	cmd := exec.Command("umount", targetPath)
+	cmd := exec.Command("chroot", "/host", "umount", targetPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to unmount volume: %v, output: %s", err, string(output))
 	}
@@ -157,12 +153,12 @@ func (d *BtrfsDriver) checkBtrfsSupport() error {
 	}
 
 	// Check if the root path is on a Btrfs filesystem
-	cmd = exec.Command("chroot", "/host", "btrfs", "filesystem", "show", BtrfsRootPath)
+	cmd = exec.Command("chroot", "/host", "btrfs", "filesystem", "show", DefaultBtrfsPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("path %s is not on a Btrfs filesystem: %v, output: %s", BtrfsRootPath, err, string(output))
+		return fmt.Errorf("path %s is not on a Btrfs filesystem: %v, output: %s", DefaultBtrfsPath, err, string(output))
 	}
 
-	klog.Infof("Btrfs support verified for path: %s", BtrfsRootPath)
+	klog.Infof("Btrfs support verified for path: %s", DefaultBtrfsPath)
 	return nil
 }
 
