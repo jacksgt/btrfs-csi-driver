@@ -27,41 +27,36 @@ A Kubernetes Container Storage Interface (CSI) driver that provides persistent v
 
 ## Quick Start
 
-### 1. Build and Deploy
+Deploy latest version of btrfs-csi-driver and ensure the pods are running
 
-```bash
-# Build the driver
-make build
-
-# Build Docker image
-make docker-build
-
-# Deploy to Kubernetes
-make deploy
+```sh
+kubectl apply -f deploy/kubernetes
+kubectl get pod -l app=btrfs-csi-driver
 ```
 
-### 2. Verify Installation
+The default manifests create a `StorageClass` that points to `/var/lib/btrfs-csi`.
+The path for the `StorageClass` must be created manually:
 
-```bash
-# Check driver status
-make status
-
-# Check logs
-make logs
+```sh
+ssh <node> mkdir /var/lib/brtfs-csi
 ```
 
-### 3. Test the Driver
+If you want to use capacity management (i.e. set a maximum size for each volume and get metrics about how much each volume uses), ensure that [Btrfs qgroups]() are enabled:
 
-```bash
-# Deploy test PVC and Pod
-make deploy-test
-
-# Check if the pod is running
-kubectl get pods -l app=btrfs-test-pod
-
-# Check the volume
-kubectl exec -it btrfs-test-pod -- ls -la /data
+```sh
+ssh <node> btrfs quote enable /var/lib/btrfs-csi
 ```
+
+You can check if qgroups are enabled with the following command:
+
+```sh
+ssh <node> btrfs qgroup show /var/lib/btrfs-csi
+```
+
+If you want to use a different filesystem or disk that is mounted in a different location, make sure to adjust the paths above as necessary.
+
+Now you can create a PersistentVolumeClaim that makes use of the new StorageClass.
+Note that a volume will only be provisioned once a Pod starts using the PVC (`volumeBindingMode: WaitForFirstConsumer`).
 
 ## Helm Chart
 
@@ -70,16 +65,12 @@ The chart supports extensive configuration through values.
 Please refer to the [Helm chart README](./deploy/helm/btrfs-csi/README.md) for detailed configuration options and examples.
 
 ```bash
-# Install the chart
-helm install btrfs-csi ./deploy/helm/btrfs-csi
+# Install the chart with default config (see "Quick Start" above)
+helm install btrfs-csi oci://ghcr.io/jacksgt/btrfs-csi-driver/charts/btrfs-csi:0.0.4
 
-# Install with custom values
-helm install btrfs-csi ./deploy/helm/btrfs-csi -f custom-values.yaml
-
-# Install in a specific namespace
-helm install btrfs-csi ./deploy/helm/btrfs-csi --namespace kube-system
+# Install with custom values and in custom namespace
+helm -n kube-system install btrfs-csi -f custom-values.yaml oci://ghcr.io/jacksgt/btrfs-csi-driver/charts/btrfs-csi:0.0.4
 ```
-
 
 ## Architecture
 
@@ -97,36 +88,7 @@ The driver is deployed as a single `DaemonSet` that is composed of:
 3. **NodeUnpublishVolume** (called when the Pod is deleted): Unmounts the subvolume from the pod.
 4. **DeleteVolume** (called when the PVC is deleted): Deletes the Btrfs subvolume from the node, releasing the storage.
 
-### StorageClass
-
-```yaml
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: btrfs-local
-provisioner: btrfs.csi.k8s.io
-volumeBindingMode: WaitForFirstConsumer
-reclaimPolicy: Delete
-allowVolumeExpansion: true
-```
-
-### PersistentVolumeClaim
-
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: my-pvc
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  storageClassName: btrfs-local
-```
-
-### Volume Expansion
+## Volume Expansion
 
 The driver supports **online volume expansion** - volumes can be expanded while they are in use without taking them offline. To expand a volume, simply update the PVC's storage request:
 
@@ -193,7 +155,9 @@ make status
 
 ## Security Considerations
 
-The driver runs with `privileged: true` and `SYS_ADMIN` capability, this is required for Btrfs subvolume operations and mount operations.
+The driver runs with `privileged: true` as well as `SYS_ADMIN` and `SYS_CHROOT` capability, this is required for Btrfs subvolume operations and mount operations.
+Furthermore, to allow creating storageclasses in arbitrary locations on the node (`/var/lib/btrfs-csi`, `/mnt/data`, ...), the entire host filesystem is mounted into the plugin container.
+This also enables the container to use the host's `btrfs` CLI tool (via chroot).
 Consider using Pod Security Standards in production environments.
 
 ## License
