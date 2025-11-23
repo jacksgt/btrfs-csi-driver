@@ -77,7 +77,7 @@ func (d *BtrfsDriver) deleteBtrfsSubvolume(subvolumePath string) error {
 // setSubvolumeQuota sets a quota for a Btrfs subvolume
 func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) error {
 	// First, check if quotas are enabled
-	if !d.areQuotasEnabled() {
+	if !d.areQuotasEnabled(subvolumePath) {
 		return fmt.Errorf("quotas not enabled")
 	}
 
@@ -94,8 +94,8 @@ func (d *BtrfsDriver) setSubvolumeQuota(subvolumePath string, sizeBytes int64) e
 }
 
 // areQuotasEnabled checks if quotas are enabled without trying to enable them
-func (d *BtrfsDriver) areQuotasEnabled() bool {
-	cmd := exec.Command("chroot", "/host", "btrfs", "qgroup", "show", DefaultBtrfsPath)
+func (d *BtrfsDriver) areQuotasEnabled(path string) bool {
+	cmd := execWithLog("chroot", "/host", "btrfs", "qgroup", "show", filepath.Dir(path))
 	if err := cmd.Run(); err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
 			// Exit code 1 means quotas are not enabled
