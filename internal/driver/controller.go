@@ -299,12 +299,12 @@ func (d *BtrfsDriver) validateValidateVolumeCapabilitiesRequest(req *csi.Validat
 // getSubvolumeRootFromVolumeContext extracts the subvolume root path from volume context
 func (d *BtrfsDriver) getSubvolumeRootFromVolumeContext(volumeContext map[string]string) string {
 	if volumeContext == nil {
-		return BtrfsRootPath // default fallback
+		return DefaultBtrfsPath // default fallback
 	}
 
 	if subvolumeRoot, exists := volumeContext["subvolumeRoot"]; exists && subvolumeRoot != "" {
 		return subvolumeRoot
 	}
 
-	return BtrfsRootPath // default fallback
+	return DefaultBtrfsPath // default fallback
 }
