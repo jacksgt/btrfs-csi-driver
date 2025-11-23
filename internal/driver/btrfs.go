@@ -121,9 +121,10 @@ func formatQuotaSize(sizeBytes int64) string {
 	return fmt.Sprintf("%dB", sizeBytes)
 }
 
-// mountSubvolume mounts a Btrfs subvolume to the target path
+// mountSubvolume mounts a Btrfs subvolume to the target path on the host
 func (d *BtrfsDriver) mountSubvolume(subvolumePath, targetPath string) error {
 	// Use bind mount to mount the subvolume
+	// TODO: implement native mount syscall
 	cmd := execWithLog("chroot", "/host", "mount", "--bind", subvolumePath, targetPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to bind mount subvolume: %v, output: %s", err, string(output))
@@ -133,8 +134,9 @@ func (d *BtrfsDriver) mountSubvolume(subvolumePath, targetPath string) error {
 	return nil
 }
 
-// unmountVolume unmounts a volume from the target path
+// unmountVolume unmounts a volume from the target path on the host
 func (d *BtrfsDriver) unmountVolume(targetPath string) error {
+	// TODO: implement native mount syscall
 	cmd := exec.Command("chroot", "/host", "umount", targetPath)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to unmount volume: %v, output: %s", err, string(output))

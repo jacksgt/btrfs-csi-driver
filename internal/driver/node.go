@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
@@ -62,14 +63,14 @@ func (d *BtrfsDriver) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	}
 
 	subvolumePath := req.GetVolumeId()
-	// Check if subvolume exists
-	if _, err := os.Stat(subvolumePath); os.IsNotExist(err) {
+	// Check if subvolume exists on the host
+	if _, err := os.Stat(filepath.Join("/host", subvolumePath)); os.IsNotExist(err) {
 		return nil, status.Errorf(codes.NotFound, "subvolume %s does not exist", subvolumePath)
 	}
 
 	targetPath := req.GetTargetPath()
 	// Create target directory
-	if err := os.MkdirAll(targetPath, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join("/host", targetPath), 0755); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create target directory %s: %v", targetPath, err)
 	}
 

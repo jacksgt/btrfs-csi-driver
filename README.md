@@ -31,7 +31,14 @@ Deploy latest version of btrfs-csi-driver and ensure the pods are running
 
 ```sh
 kubectl apply -f deploy/kubernetes
+
 kubectl get pod -l app=btrfs-csi-driver
+NAME                    READY   STATUS    RESTARTS    AGE
+btrfs-csi-vcffm         4/4     Running   0           60s
+
+kubectl get storageclass
+NAME             PROVISIONER          RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+btrfs-local      btrfs.csi.k8s.io     Delete          WaitForFirstConsumer   true                   66s
 ```
 
 The default manifests create a `StorageClass` that points to `/var/lib/btrfs-csi`.
@@ -41,7 +48,7 @@ The path for the `StorageClass` must be created manually:
 ssh <node> mkdir /var/lib/brtfs-csi
 ```
 
-If you want to use capacity management (i.e. set a maximum size for each volume and get metrics about how much each volume uses), ensure that [Btrfs qgroups]() are enabled:
+If you want to use capacity management (i.e. set a maximum size for each volume and get metrics about how much each volume uses), ensure that [Btrfs quota groups](https://btrfs.readthedocs.io/en/latest/Qgroups.html) are enabled:
 
 ```sh
 ssh <node> btrfs quote enable /var/lib/btrfs-csi
